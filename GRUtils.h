@@ -2,13 +2,19 @@
 #ifndef GRUTILS_H
 #define GRUTILS_H
 
+#include <vector>
+#include <map>
+
+#include "core/object.h"
 #include "core/image.h"
-#include "core/io/marshalls.h"
-#include "core/os/os.h"
 #include "core/print_string.h"
 #include "core/project_settings.h"
 #include "core/variant.h"
+#include "core/io/marshalls.h"
+#include "core/os/os.h"
 #include "main/input_default.h"
+
+#include "GRLiterals.h"
 
 #ifdef DEBUG_ENABLED
 
@@ -16,7 +22,7 @@
 #define TimeCountReset() simple_time_counter = OS::get_singleton()->get_ticks_usec()
 // Shows delta between this and previous counter. Need to call TimeCountInit before
 #define TimeCount(str)                                                                                                                                      \
-	GRUtils::_log(str + String(": ") + String::num((OS::get_singleton()->get_ticks_usec() - simple_time_counter) / 1000.0, 3) + " ms", LogLevel::LL_Debug); \
+	GRUtils::_log(str + String(": ") + String::num((OS::get_singleton()->get_ticks_usec() - simple_time_counter) / 1000.0, 3) + " ms", LogLevel::LL_DEBUG); \
 	simple_time_counter = OS::get_singleton()->get_ticks_usec()
 
 // Bind constant with custom name
@@ -35,22 +41,29 @@
 
 #endif // DEBUG_ENABLED
 
+#define LEAVE_IF_EDITOR()                          \
+	if (Engine::get_singleton()->is_editor_hint()) \
+		return;
+
+#define newref(_class) Ref<_class>(memnew(_class))
 #define max(x, y) (x > y ? x : y)
 #define min(x, y) (x < y ? x : y)
+#define _log(val, ll) log_str(val, ll, __FILE__, __LINE__)
+#define is_vector_contains(vec, val) (std::find(vec.begin(), vec.end(), val) != vec.end())
 
-#define GR_VERSION(x, y, z)         \
-	if (internal_VERSION.empty()) { \
-		internal_VERSION.append(x); \
-		internal_VERSION.append(y); \
-		internal_VERSION.append(z); \
+#define GR_VERSION(x, y, z)                            \
+	if (_grutils_data->internal_VERSION.size() == 0) { \
+		_grutils_data->internal_VERSION.append(x);     \
+		_grutils_data->internal_VERSION.append(y);     \
+		_grutils_data->internal_VERSION.append(z);     \
 	}
 
-#define GR_PACKET_HEADER(a, b, c, d)      \
-	if (internal_PACKET_HEADER.empty()) { \
-		internal_PACKET_HEADER.append(a); \
-		internal_PACKET_HEADER.append(b); \
-		internal_PACKET_HEADER.append(c); \
-		internal_PACKET_HEADER.append(d); \
+#define GR_PACKET_HEADER(a, b, c, d)                         \
+	if (_grutils_data->internal_PACKET_HEADER.size() == 0) { \
+		_grutils_data->internal_PACKET_HEADER.append(a);     \
+		_grutils_data->internal_PACKET_HEADER.append(b);     \
+		_grutils_data->internal_PACKET_HEADER.append(c);     \
+		_grutils_data->internal_PACKET_HEADER.append(d);     \
 	}
 
 #define CON_ADDRESS(con) str(con->get_connected_host()) + ":" + str(con->get_connected_port())
@@ -62,41 +75,40 @@
 #define GET_PS_SET(variable_to_store, setting_name) \
 	variable_to_store = ProjectSettings::get_singleton()->get_setting(setting_name)
 
+#define THREAD_FUNC static
+#define THREAD_DATA void *
+
 enum LogLevel {
-	LL_Debug = 0,
-	LL_Normal = 1,
-	LL_Warning = 2,
-	LL_Error = 3,
-	LL_None,
+	LL_DEBUG = __LL_DEBUG,
+	LL_NORMAL = __LL_NORMAL,
+	LL_WARNING = __LL_WARNING,
+	LL_ERROR = __LL_ERROR,
+	LL_NONE,
 };
 
-enum Subsampling {
-	SUBSAMPLING_Y_ONLY = 0,
-	SUBSAMPLING_H1V1 = 1,
-	SUBSAMPLING_H2V1 = 2,
-	SUBSAMPLING_H2V2 = 3
-};
-
-enum ImageCompressionType {
-	Uncompressed = 0,
-	JPG = 1,
-	PNG = 2,
-};
-
-enum TypesOfServerSettings {
-	USE_INTERNAL_SERVER_SETTINGS = 0,
-	VIDEO_STREAM_ENABLED = 1,
-	COMPRESSION_TYPE = 2,
-	JPG_QUALITY = 3,
-	SKIP_FRAMES = 4,
-	RENDER_SCALE = 5,
-};
 namespace GRUtils {
 // DEFINES
 
-extern int current_loglevel;
-extern PoolByteArray internal_PACKET_HEADER;
-extern PoolByteArray internal_VERSION;
+class GRUtilsData : public Object {
+	GDCLASS(GRUtilsData, Object);
+
+public:
+	int current_loglevel;
+	PoolByteArray internal_PACKET_HEADER;
+	PoolByteArray internal_VERSION;
+};
+
+#ifndef NO_GODOTREMOTE_SERVER
+class GRUtilsDataServer {
+public:
+	PoolByteArray compress_buffer;
+	int compress_buffer_size_mb;
+};
+
+extern GRUtilsDataServer *_grutils_data_server;
+#endif
+
+extern GRUtilsData *_grutils_data;
 
 extern void init();
 extern void deinit();
@@ -106,12 +118,12 @@ extern void init_server_utils();
 extern void deinit_server_utils();
 extern PoolByteArray compress_buffer;
 extern int compress_buffer_size_mb;
-extern Error compress_jpg(PoolByteArray &ret, const PoolByteArray &img_data, int width, int height, int bytes_for_color = 4, int quality = 75, int subsampling = Subsampling::SUBSAMPLING_H2V2);
+extern Error compress_jpg(PoolByteArray &ret, const PoolByteArray &img_data, int width, int height, int bytes_for_color = 4, int quality = 75, int subsampling = __SUBSAMPLING_H2V2);
 #endif
 
 extern Error compress_bytes(const PoolByteArray &bytes, PoolByteArray &res, int type);
 extern Error decompress_bytes(const PoolByteArray &bytes, int output_size, PoolByteArray &res, int type);
-extern void _log(const Variant &val, LogLevel lvl = LogLevel::LL_Normal);
+extern void log_str(const Variant &val, int lvl = __LL_NORMAL, String file = "", int line = 0);
 
 extern String str(const Variant &val);
 extern String str_arr(const Array arr, const bool force_full = false, const int max_shown_items = 32, String separator = ", ");
@@ -139,6 +151,56 @@ constexpr uint32_t operator"" _ms(unsigned long long val) {
 // IMPLEMENTATINS
 
 template <class T>
+extern String str_arr(const std::vector<T> arr, const bool force_full = false, const int max_shown_items = 64, String separator = ", ") {
+	String res = "[ ";
+	int s = arr.size();
+	bool is_long = false;
+	if (s > max_shown_items && !force_full) {
+		s = max_shown_items;
+		is_long = true;
+	}
+	for (int i = 0; i < s; i++) {
+		res += str(arr[i]);
+		if (i != s - 1 || is_long) {
+			res += separator;
+		}
+	}
+
+	if (is_long) {
+		res += str(int64_t(arr.size()) - s) + " more items...";
+	}
+
+	return res + " ]";
+};
+
+template <class K, class V>
+extern String str_arr(const std::map<K, V> arr, const bool force_full = false, const int max_shown_items = 32, String separator = ", ") {
+	String res = "{ ";
+	int s = (int)arr.size();
+	bool is_long = false;
+	if (s > max_shown_items && !force_full) {
+		s = max_shown_items;
+		is_long = true;
+	}
+
+	int i = 0;
+	for (auto p : arr) {
+		if (i++ >= s)
+			break;
+		res += str(p.first) + " : " + str(p.second);
+		if (i != s - 1 || is_long) {
+			res += separator;
+		}
+	}
+
+	if (is_long) {
+		res += String::num_int64(int64_t(arr.size()) - s) + " more items...";
+	}
+
+	return res + " }";
+}
+
+template <class T>
 static String str_arr(PoolVector<T> arr, const bool force_full = false, const int max_shown_items = 64, String separator = ", ") {
 	String res = "[ ";
 	int s = arr.size();
@@ -158,52 +220,73 @@ static String str_arr(PoolVector<T> arr, const bool force_full = false, const in
 	r.release();
 
 	if (is_long) {
-		res += String::num_int64(int64_t(arr.size()) - s) + " more items...";
-	}
-
-	return res + " ]";
-};
-
-template <class T>
-static String str_arr(Vector<T> arr, const bool force_full = false, const int max_shown_items = 64, String separator = ", ") {
-	String res = "[ ";
-	int s = arr.size();
-	bool is_long = false;
-	if (s > max_shown_items && !force_full) {
-		s = max_shown_items;
-		is_long = true;
-	}
-
-	for (int i = 0; i < s; i++) {
-		res += str(arr[i]);
-		if (i != s - 1 || is_long) {
-			res += separator;
-		}
-	}
-
-	if (is_long) {
-		res += String::num_int64(int64_t(arr.size()) - s) + " more items...";
+		res += str(int64_t(arr.size()) - s) + " more items...";
 	}
 
 	return res + " ]";
 };
 
 static inline PoolByteArray get_packet_header() {
-	return internal_PACKET_HEADER;
+	return _grutils_data->internal_PACKET_HEADER;
 }
 
 static inline PoolByteArray get_gr_version() {
-	return internal_VERSION;
+	return _grutils_data->internal_VERSION;
 }
 
-static inline  void set_log_level(LogLevel lvl) {
-	current_loglevel = lvl;
+static inline void set_log_level(int lvl) {
+	_grutils_data->current_loglevel = lvl;
 }
+
+template <class T>
+inline void vec_remove_idx(std::vector<T> &v, const T &item) {
+	v.erase(std::remove(v.begin(), v.end(), item), v.end());
+}
+
+template <class K, class V>
+static Dictionary map_to_dict(std::map<K, V> m) {
+	Dictionary res;
+	for (auto p : m) {
+		res[p.first] = p.second;
+	}
+	return res;
+}
+
+template <class K, class V>
+static std::map<K, V> dict_to_map(Dictionary d) {
+	std::map<K, V> res;
+	Array keys = d.keys();
+	Array values = d.values();
+	for (int i = 0; i < keys.size(); i++) {
+		res[keys[i]] = values[i];
+	}
+	keys.clear();
+	values.clear();
+	return res;
+}
+
+template <class V>
+static Array vec_to_arr(std::vector<V> v) {
+	Array res;
+	res.resize((int)v.size());
+	for (int i = 0; i < v.size(); i++) {
+		res[i] = v[i];
+	}
+	return res;
+}
+
+template <class V>
+static std::vector<V> arr_to_vec(Array a) {
+	std::vector<V> res;
+	res.resize(a.size());
+	for (int i = 0; i < a.size(); i++) {
+		res[i] = a[i];
+	}
+	return res;
+}
+
+extern Vector<Variant> vec_args(const std::vector<Variant> &args);
 
 }; // namespace GRUtils
 
-VARIANT_ENUM_CAST(Subsampling)
-VARIANT_ENUM_CAST(LogLevel)
-VARIANT_ENUM_CAST(ImageCompressionType)
-VARIANT_ENUM_CAST(TypesOfServerSettings)
 #endif // !GRUTILS_H

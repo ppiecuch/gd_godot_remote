@@ -10,50 +10,94 @@
 #endif
 
 namespace GRUtils {
-int current_loglevel = LogLevel::LL_Normal;
-
-PoolByteArray internal_PACKET_HEADER = PoolByteArray();
-PoolByteArray internal_VERSION = PoolByteArray();
-
-#ifndef NO_GODOTREMOTE_SERVER
-int compress_buffer_size_mb = 4;
-PoolByteArray compress_buffer = PoolByteArray();
-#endif
 
 void init() {
-	GR_PACKET_HEADER('G', 'R', 'H', 'D');
-	GR_VERSION(1, 0, 0);
+	LEAVE_IF_EDITOR();
 
-	GET_PS_SET(current_loglevel, GodotRemote::ps_general_loglevel_name);
+	_grutils_data = memnew(GRUtilsData);
+	_grutils_data->current_loglevel = GodotRemote::LogLevel::LL_NORMAL;
+
+	GR_PACKET_HEADER('G', 'R', 'H', 'D');
+# include "GRVersion.h"
+
+	GET_PS_SET(_grutils_data->current_loglevel, GodotRemote::ps_general_loglevel_name);
 }
 
 void deinit() {
-	internal_PACKET_HEADER.resize(0);
-	internal_VERSION.resize(0);
+	LEAVE_IF_EDITOR();
+
+	if (_grutils_data) {
+		_grutils_data->internal_PACKET_HEADER.resize(0);
+		_grutils_data->internal_VERSION.resize(0);
+		memdelete(_grutils_data);
+		_grutils_data = nullptr;
+	}
 }
 
 #ifndef NO_GODOTREMOTE_SERVER
+GRUtilsDataServer *_grutils_data_server = nullptr;
+
 void init_server_utils() {
-	GET_PS_SET(compress_buffer_size_mb, GodotRemote::ps_server_jpg_buffer_mb_size_name);
-	compress_buffer.resize((1024 * 1024) * compress_buffer_size_mb);
+	LEAVE_IF_EDITOR();
+	_grutils_data_server = new GRUtilsDataServer();
+
+	GET_PS_SET(_grutils_data_server->compress_buffer_size_mb, GodotRemote::ps_server_jpg_buffer_mb_size_name);
+	_grutils_data_server->compress_buffer.resize((1024 * 1024) * _grutils_data_server->compress_buffer_size_mb);
 }
 
 void deinit_server_utils() {
-	compress_buffer.resize(0);
+	LEAVE_IF_EDITOR();
+	_grutils_data_server->compress_buffer.resize(0);
+	delete _grutils_data_server;
 }
 #endif
 
-void _log(const Variant &val, LogLevel lvl) {
+void log_str(const Variant &val, int lvl, String file, int line) {
 #ifdef DEBUG_ENABLED
-	if (lvl >= current_loglevel && lvl < LogLevel::LL_None) {
-		if (lvl == LogLevel::LL_Error) {
-			print_error("[GodotRemote Error] " + str(val));
-		} else if (lvl == LogLevel::LL_Warning) {
-			print_error("[GodotRemote Warning] " + str(val));
+#ifndef GDNATIVE_LIBRARY
+	if (lvl >= _grutils_data->current_loglevel && lvl < LogLevel::LL_NONE) {
+		String file_line = "";
+		if (file != "") {
+			int idx = file.find("godot_remote");
+			if (idx != -1) {
+				file = file.substr(file.find("godot_remote"), file.length());
+			}
+
+			file_line = "\n    At: " + file + ":" + str(line);
+		}
+
+		if (lvl == LogLevel::LL_ERROR) {
+			print_error("[GodotRemote Error] " + str(val) + file_line);
+		} else if (lvl == LogLevel::LL_WARNING) {
+			print_error("[GodotRemote Warning] " + str(val) + file_line);
 		} else {
 			print_line("[GodotRemote] " + str(val));
 		}
 	}
+
+#else
+
+#define print_error_ext() Godot::print_error(str(val), "[GodotRemote Error]", file, line)
+#define print_warning_ext() Godot::print_warning(str(val), "[GodotRemote Warning]", file, line)
+
+	if (lvl >= _grutils_data->current_loglevel && lvl < LogLevel::LL_NONE) {
+		if (file != "") {
+			int idx = file.find("godot_remote");
+			if (idx != -1)
+				file = file.substr(file.find("godot_remote"), file.length());
+		}
+
+		if (lvl == LogLevel::LL_ERROR) {
+			print_error_ext();
+		} else if (lvl == LogLevel::LL_WARNING) {
+			print_warning_ext();
+		} else {
+			Godot::print("[GodotRemote] " + str(val));
+		}
+	}
+#undef print_error_ext
+#undef print_warning_ext
+#endif
 #endif
 }
 
@@ -89,12 +133,18 @@ String str_arr(const Dictionary arr, const bool force_full, const int max_shown_
 		is_long = true;
 	}
 
+	Array keys = arr.keys();
+	Array values = arr.values();
+
 	for (int i = 0; i < s; i++) {
-		res += str(arr.get_key_at_index(i)) + " : " + str(arr.get_value_at_index(i));
+		res += str(keys[i]) + " : " + str(values[i]);
 		if (i != s - 1 || is_long) {
 			res += separator;
 		}
 	}
+
+	keys.clear();
+	values.clear();
 
 	if (is_long) {
 		res += String::num_int64(int64_t(arr.size()) - s) + " more items...";
@@ -113,7 +163,7 @@ String str_arr(const uint8_t *data, const int size, const bool force_full, const
 	}
 
 	for (int i = 0; i < s; i++) {
-		res += String::num_uint64(data[i]);
+		res += str(data[i]);
 		if (i != s - 1 || is_long) {
 			res += separator;
 		}
@@ -129,7 +179,7 @@ String str_arr(const uint8_t *data, const int size, const bool force_full, const
 #ifndef NO_GODOTREMOTE_SERVER
 Error compress_jpg(PoolByteArray &ret, const PoolByteArray &img_data, int width, int height, int bytes_for_color, int quality, int subsampling) {
 	PoolByteArray res;
-	ERR_FAIL_COND_V(img_data.empty(), Error::ERR_INVALID_PARAMETER);
+	ERR_FAIL_COND_V(img_data.size() == 0, Error::ERR_INVALID_PARAMETER);
 	ERR_FAIL_COND_V(quality < 1 || quality > 100, Error::ERR_INVALID_PARAMETER);
 
 	jpge::params params;
@@ -137,9 +187,9 @@ Error compress_jpg(PoolByteArray &ret, const PoolByteArray &img_data, int width,
 	params.m_subsampling = (jpge::subsampling_t)subsampling;
 
 	ERR_FAIL_COND_V(!params.check(), Error::ERR_INVALID_PARAMETER);
-	auto rb = compress_buffer.read();
+	auto rb = _grutils_data_server->compress_buffer.read();
 	auto ri = img_data.read();
-	int size = compress_buffer.size();
+	int size = _grutils_data_server->compress_buffer.size();
 
 	TimeCountInit();
 
@@ -163,7 +213,7 @@ Error compress_jpg(PoolByteArray &ret, const PoolByteArray &img_data, int width,
 
 	TimeCount("Combine arrays");
 
-	_log("JPG size: " + str(res.size()), LogLevel::LL_Debug);
+	_log("JPG size: " + str(res.size()), LogLevel::LL_DEBUG);
 
 	rb.release();
 	ret = res;
@@ -173,14 +223,15 @@ Error compress_jpg(PoolByteArray &ret, const PoolByteArray &img_data, int width,
 
 Error compress_bytes(const PoolByteArray &bytes, PoolByteArray &res, int type) {
 	Error err = res.resize(bytes.size());
+
 	ERR_FAIL_COND_V_MSG(err, err, "Can't resize output array");
 
-	auto r = bytes.read();
-	auto w = res.write();
-	int size = Compression::compress(w.ptr(), r.ptr(), bytes.size(), (Compression::Mode)type);
-
-	r.release();
-	w.release();
+	int size = 0;
+	{
+		auto r = bytes.read();
+		auto w = res.write();
+		size = Compression::compress(w.ptr(), r.ptr(), bytes.size(), (Compression::Mode)type);
+	}
 
 	if (size) {
 		res.resize(size);
@@ -197,13 +248,12 @@ Error decompress_bytes(const PoolByteArray &bytes, int output_size, PoolByteArra
 	Error err = res.resize(output_size);
 	ERR_FAIL_COND_V_MSG(err, err, "Can't resize output array");
 
-	auto r = bytes.read();
-	auto w = res.write();
-	int size = Compression::decompress(w.ptr(), output_size, r.ptr(), bytes.size(), (Compression::Mode)type);
-
-	r.release();
-	w.release();
-
+	int size = 0;
+	{
+		auto r = bytes.read();
+		auto w = res.write();
+		size = Compression::decompress(w.ptr(), output_size, r.ptr(), bytes.size(), (Compression::Mode)type);
+	}
 	if (output_size == -1) {
 		ERR_PRINT("Can't decompress bytes");
 		err = Error::FAILED;
@@ -213,7 +263,6 @@ Error decompress_bytes(const PoolByteArray &bytes, int output_size, PoolByteArra
 		err = Error::FAILED;
 		res = PoolByteArray();
 	}
-
 	return err;
 }
 
@@ -326,7 +375,7 @@ String str(const Variant &val) {
 }
 
 bool validate_packet(const uint8_t *data) {
-	if (data[0] == internal_PACKET_HEADER[0] && data[1] == internal_PACKET_HEADER[1] && data[2] == internal_PACKET_HEADER[2] && data[3] == internal_PACKET_HEADER[3])
+	if (data[0] == _grutils_data->internal_PACKET_HEADER[0] && data[1] == _grutils_data->internal_PACKET_HEADER[1] && data[2] == _grutils_data->internal_PACKET_HEADER[2] && data[3] == _grutils_data->internal_PACKET_HEADER[3])
 		return true;
 	return false;
 }
@@ -334,13 +383,13 @@ bool validate_packet(const uint8_t *data) {
 bool validate_version(const PoolByteArray &data) {
 	if (data.size() < 2)
 		return false;
-	if (data[0] == internal_VERSION[0] && data[1] == internal_VERSION[1])
+	if (((PoolByteArray)data)[0] == _grutils_data->internal_VERSION[0] && ((PoolByteArray)data)[1] == _grutils_data->internal_VERSION[1])
 		return true;
 	return false;
 }
 
 bool validate_version(const uint8_t *data) {
-	if (data[0] == internal_VERSION[0] && data[1] == internal_VERSION[1])
+	if (data[0] == _grutils_data->internal_VERSION[0] && data[1] == _grutils_data->internal_VERSION[1])
 		return true;
 	return false;
 }
@@ -380,6 +429,15 @@ void set_gyroscope(const Vector3 &p_gyroscope) {
 	auto *id = (InputDefault *)Input::get_singleton();
 	if (id)
 		id->set_gyroscope(p_gyroscope);
+}
+
+Vector<Variant> vec_args(const std::vector<Variant> &args) {
+	Vector<Variant> res;
+	for (Variant v : args) {
+		res.push_back(v);
+	}
+
+	return res;
 }
 
 } // namespace GRUtils

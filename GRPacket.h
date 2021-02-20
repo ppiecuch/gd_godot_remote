@@ -1,34 +1,51 @@
 /* GRPacket.h */
 #pragma once
 
+#include <vector>
+
+#include "GRInputData.h"
 #include "GRUtils.h"
 #include "core/io/stream_peer.h"
 #include "core/reference.h"
 
-enum PacketType {
-	NonePacket = 0,
-	SyncTime = 1,
-	ImageData = 2,
-	InputData = 3,
-	ServerSettings = 4,
-	MouseModeSync = 5,
-	CustomInputScene = 6,
-	ClientStreamOrientation = 7,
-	ClientStreamAspect = 8,
-
-	// Requests
-	Ping = 128,
-
-	// Responses
-	Pong = 192,
-};
-
-VARIANT_ENUM_CAST(PacketType)
-
 class GRPacket : public Reference {
 	GDCLASS(GRPacket, Reference);
 
+public:
+	enum PacketType {
+		NonePacket = 0,
+		SyncTime = 1,
+		ImageData = 2,
+		InputData = 3,
+		ServerSettings = 4,
+		MouseModeSync = 5,
+		CustomInputScene = 6,
+		ClientStreamOrientation = 7,
+		ClientStreamAspect = 8,
+		CustomUserData = 9,
+
+		// Requests
+		Ping = 128,
+
+		// Responses
+		Pong = 192,
+	};
+
 protected:
+	static void _bind_methods() {
+		BIND_ENUM_CONSTANT(NonePacket);
+		BIND_ENUM_CONSTANT(SyncTime);
+		BIND_ENUM_CONSTANT(ImageData);
+		BIND_ENUM_CONSTANT(InputData);
+		BIND_ENUM_CONSTANT(ServerSettings);
+		BIND_ENUM_CONSTANT(MouseModeSync);
+		BIND_ENUM_CONSTANT(CustomInputScene);
+		BIND_ENUM_CONSTANT(ClientStreamOrientation);
+		BIND_ENUM_CONSTANT(ClientStreamAspect);
+		BIND_ENUM_CONSTANT(CustomUserData);
+		BIND_ENUM_CONSTANT(Ping);
+		BIND_ENUM_CONSTANT(Pong);
+	}
 	virtual Ref<StreamPeerBuffer> _get_data() {
 		Ref<StreamPeerBuffer> buf(memnew(StreamPeerBuffer));
 		buf->put_8((uint8_t)get_type());
@@ -71,12 +88,12 @@ class GRPacketImageData : public GRPacket {
 	GDCLASS(GRPacketImageData, GRPacket);
 	friend GRPacket;
 
-	ImageCompressionType compression = ImageCompressionType::Uncompressed;
+	/* GRDevice::ImageCompressionType */ int compression = __COMPRESSION_UNCOMPRESSED;
 	Size2 size;
 	int format = 0;
 	PoolByteArray img_data;
 	uint64_t start_time = 0;
-	uint32_t frametime = 0;
+	uint64_t frametime = 0;
 	bool is_empty = false;
 
 protected:
@@ -109,7 +126,7 @@ class GRPacketInputData : public GRPacket {
 	GDCLASS(GRPacketInputData, GRPacket);
 	friend GRPacket;
 
-	Vector<Ref<class GRInputData> > inputs;
+	std::vector<Ref<GRInputData>> inputs;
 
 protected:
 	virtual Ref<StreamPeerBuffer> _get_data() override;
@@ -121,8 +138,8 @@ public:
 	int get_inputs_count();
 	Ref<class GRInputData> get_input_data(int idx);
 	void remove_input_data(int idx);
-	void add_input_data(Ref<class GRInputData> &input);
-	void set_input_data(Vector<Ref<class GRInputData> > &_inputs);
+	void add_input_data(Ref<GRInputData> &input);
+	void set_input_data(std::vector<Ref<GRInputData> > &_inputs);
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -131,7 +148,7 @@ class GRPacketServerSettings : public GRPacket {
 	GDCLASS(GRPacketServerSettings, GRPacket);
 	friend GRPacket;
 
-	Dictionary settings;
+	std::map<int, Variant> settings;
 
 protected:
 	virtual Ref<StreamPeerBuffer> _get_data() override;
@@ -140,8 +157,8 @@ protected:
 public:
 	virtual PacketType get_type() override { return PacketType::ServerSettings; };
 
-	Dictionary get_settings();
-	void set_settings(Dictionary &_settings);
+	std::map<int, Variant> get_settings();
+	void set_settings(std::map<int, Variant> &_settings);
 	void add_setting(int _setting, Variant value);
 };
 
@@ -234,6 +251,31 @@ public:
 };
 
 //////////////////////////////////////////////////////////////////////////
+// CUSTOM USER DATA
+class GRPacketCustomUserData : public GRPacket {
+	GDCLASS(GRPacketCustomUserData, GRPacket);
+	friend GRPacket;
+
+	Variant packet_id;
+	bool full_objects = false;
+	Variant user_data;
+
+protected:
+	virtual Ref<StreamPeerBuffer> _get_data() override;
+	virtual bool _create(Ref<StreamPeerBuffer> buf) override;
+
+public:
+	virtual PacketType get_type() override { return PacketType::CustomUserData; };
+
+	Variant get_packet_id();
+	void set_packet_id(Variant val);
+	bool get_send_full_objects();
+	void set_send_full_objects(bool val);
+	Variant get_user_data();
+	void set_user_data(Variant val);
+};
+
+//////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 // REQUESTS AND RESPONSES
@@ -255,3 +297,5 @@ BASIC_PACKET(GRPacketPing, PacketType::Ping);
 BASIC_PACKET(GRPacketPong, PacketType::Pong);
 
 #undef BASIC_PACKET
+
+VARIANT_ENUM_CAST(GRPacket::PacketType)

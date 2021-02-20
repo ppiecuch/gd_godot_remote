@@ -6,31 +6,6 @@
 #include "core/os/input_event.h"
 #include "core/reference.h"
 
-enum InputType {
-	_NoneIT = 0,
-	// Custom Input Data
-	_InputDeviceSensors = 1,
-
-	// Input Events
-	_InputEvent = 64,
-	_InputEventAction = 65,
-	_InputEventGesture = 66,
-	_InputEventJoypadButton = 67,
-	_InputEventJoypadMotion = 68,
-	_InputEventKey = 69,
-	_InputEventMagnifyGesture = 70,
-	_InputEventMIDI = 71,
-	_InputEventMouse = 72,
-	_InputEventMouseButton = 73,
-	_InputEventMouseMotion = 74,
-	_InputEventPanGesture = 75,
-	_InputEventScreenDrag = 76,
-	_InputEventScreenTouch = 77,
-	_InputEventWithModifiers = 78,
-	_InputEventMAX,
-};
-
-VARIANT_ENUM_CAST(InputType)
 //////////////////////////////////////////////////////////////////////////
 // BASE CLASS
 
@@ -39,7 +14,54 @@ class GRInputData : public Reference {
 	GDCLASS(GRInputData, Reference);
 	friend class GRInputDeviceSensorsData;
 
+public:
+	enum InputType {
+		_NoneIT = 0,
+		// Custom Input Data
+		_InputDeviceSensors = 1,
+
+		// Input Events
+		_InputEvent = 64,
+		_InputEventAction = 65,
+		_InputEventGesture = 66,
+		_InputEventJoypadButton = 67,
+		_InputEventJoypadMotion = 68,
+		_InputEventKey = 69,
+		_InputEventMagnifyGesture = 70,
+		_InputEventMIDI = 71,
+		_InputEventMouse = 72,
+		_InputEventMouseButton = 73,
+		_InputEventMouseMotion = 74,
+		_InputEventPanGesture = 75,
+		_InputEventScreenDrag = 76,
+		_InputEventScreenTouch = 77,
+		_InputEventWithModifiers = 78,
+		_InputEventMAX,
+	};
+
 protected:
+	static void _bind_methods() {
+		BIND_ENUM_CONSTANT(_NoneIT);
+		BIND_ENUM_CONSTANT(_InputDeviceSensors);
+
+		BIND_ENUM_CONSTANT(_InputEvent);
+		BIND_ENUM_CONSTANT(_InputEventAction);
+		BIND_ENUM_CONSTANT(_InputEventGesture);
+		BIND_ENUM_CONSTANT(_InputEventJoypadButton);
+		BIND_ENUM_CONSTANT(_InputEventJoypadMotion);
+		BIND_ENUM_CONSTANT(_InputEventKey);
+		BIND_ENUM_CONSTANT(_InputEventMagnifyGesture);
+		BIND_ENUM_CONSTANT(_InputEventMIDI);
+		BIND_ENUM_CONSTANT(_InputEventMouse);
+		BIND_ENUM_CONSTANT(_InputEventMouseButton);
+		BIND_ENUM_CONSTANT(_InputEventMouseMotion);
+		BIND_ENUM_CONSTANT(_InputEventPanGesture);
+		BIND_ENUM_CONSTANT(_InputEventScreenDrag);
+		BIND_ENUM_CONSTANT(_InputEventScreenTouch);
+		BIND_ENUM_CONSTANT(_InputEventWithModifiers);
+		BIND_ENUM_CONSTANT(_InputEventMAX);
+	}
+
 	Ref<StreamPeerBuffer> data;
 	virtual InputType _get_type() { return InputType::_NoneIT; };
 
@@ -141,3 +163,5 @@ INPUT_EVENT_DATA(GRIEDataAction, GRInputDataEvent, InputType::_InputEventAction)
 INPUT_EVENT_DATA(GRIEDataMIDI, GRInputDataEvent, InputType::_InputEventMIDI);
 
 #undef INPUT_EVENT_DATA
+
+VARIANT_ENUM_CAST(GRInputData::InputType)

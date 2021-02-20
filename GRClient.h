@@ -2,6 +2,7 @@
 #pragma once
 
 #ifndef NO_GODOTREMOTE_CLIENT
+#define NO_GODOTREMOTE_CLIENT
 
 #include "GRDevice.h"
 #include "core/os/thread_safe.h"
@@ -10,57 +11,62 @@
 #include "scene/gui/texture_rect.h"
 #include "scene/main/node.h"
 
-enum ConnectionType {
-	CONNECTION_WiFi = 0,
-	CONNECTION_ADB = 1,
-};
-
-enum StretchMode {
-	STRETCH_KEEP_ASPECT = 0,
-	STRETCH_FILL = 1,
-};
-
-enum StreamState {
-	STREAM_NO_SIGNAL = 0,
-	STREAM_ACTIVE = 1,
-	STREAM_NO_IMAGE = 2,
-};
-
 class GRClient : public GRDevice {
 	GDCLASS(GRClient, GRDevice);
 
 	friend class GRTextureRect;
 
-		enum class ScreenOrientation {
+	enum class ScreenOrientation {
 		NONE = 0,
 		VERTICAL = 1,
 		HORIZONTAL = 2,
 	};
 
-
 public:
+	enum ConnectionType {
+		CONNECTION_WiFi = 0,
+		CONNECTION_ADB = 1,
+	};
+
+	enum StretchMode {
+		STRETCH_KEEP_ASPECT = 0,
+		STRETCH_FILL = 1,
+	};
+
+	enum StreamState {
+		STREAM_NO_SIGNAL = 0,
+		STREAM_ACTIVE = 1,
+		STREAM_NO_IMAGE = 2,
+	};
+
 private:
-	class ImgProcessingStorage {
+
+	class ImgProcessingStorageClient : public Object {
+		GDCLASS(ImgProcessingStorageClient, Object);
+
 	public:
 		GRClient *dev = nullptr;
 		PoolByteArray tex_data;
 		uint64_t framerate = 0;
 		int format = 0;
-		ImageCompressionType compression_type = ImageCompressionType::Uncompressed;
+		ImageCompressionType compression_type = ImageCompressionType::COMPRESSION_UNCOMPRESSED;
 		Size2 size;
 		bool *_is_processing_img = nullptr;
 
-		ImgProcessingStorage(GRClient *_dev) {
-			dev = _dev;
-		}
+		void _init() {
+			LEAVE_IF_EDITOR();
+			tex_data = PoolByteArray();
+		};
 
-		~ImgProcessingStorage() {
+		ImgProcessingStorageClient(GRClient *dev) : dev(dev) {}
+		~ImgProcessingStorageClient() {
+			LEAVE_IF_EDITOR();
 			tex_data.resize(0);
 		}
 	};
 
-	class ConnectionThreadParams : public Reference {
-		GDCLASS(ConnectionThreadParams, Reference);
+	class ConnectionThreadParamsClient : public Object {
+		GDCLASS(ConnectionThreadParamsClient, Object);
 
 	public:
 		GRClient *dev = nullptr;
@@ -77,7 +83,12 @@ private:
 			thread.wait_to_finish();
 		}
 
-		~ConnectionThreadParams() {
+		void _init() {};
+		void _deinit() {};
+
+		ConnectionThreadParamsClient(GRClient *dev) : dev(dev) {}
+		~ConnectionThreadParamsClient() {
+			LEAVE_IF_EDITOR();
 			close_thread();
 			if (peer.is_valid()) {
 				peer.unref();
@@ -88,13 +99,14 @@ private:
 		};
 	};
 
+private:
 	bool is_deleting = false;
 	bool is_connection_working = false;
 	Node *settings_menu_node = nullptr;
 	class Control *control_to_show_in = nullptr;
 	class GRTextureRect *tex_shows_stream = nullptr;
 	class GRInputCollector *input_collector = nullptr;
-	Ref<ConnectionThreadParams> thread_connection;
+	ConnectionThreadParamsClient *thread_connection = nullptr;
 	ScreenOrientation is_vertical = ScreenOrientation::NONE;
 
 	String device_id = "UNKNOWN";
@@ -107,9 +119,8 @@ private:
 	bool _server_settings_syncing = false;
 	StretchMode stretch_mode = StretchMode::STRETCH_KEEP_ASPECT;
 
-	Mutex send_queue_mutex;
 	Mutex connection_mutex;
-	List<Ref<class GRPacket> > send_queue;
+
 	ConnectionType con_type = ConnectionType::CONNECTION_WiFi;
 	int input_buffer_size_in_mb = 4;
 	int send_data_fps = 60;
@@ -134,30 +145,19 @@ private:
 	Node *custom_input_scene = nullptr;
 	String custom_input_scene_tmp_pck_file = "user://custom_input_scene.pck";
 
-	template <class T>
-	T _find_queued_packet_by_type() {
-		for (auto e = send_queue.front(); e; e = e->next()) {
-			T o = e->get();
-			if (o.is_valid()) {
-				return o;
-			}
-		}
-		return T();
-	}
-
 	void _force_update_stream_viewport_signals();
 	void _load_custom_input_scene(Ref<class GRPacketCustomInputScene> _data);
 	void _remove_custom_input_scene();
 	void _viewport_size_changed();
-
-	void _update_texture_from_iamge(Ref<Image> img);
+	void _on_node_deleting(int var_name);
+	void _update_texture_from_image(Ref<Image> img);
 	void _update_stream_texture_state(StreamState _stream_state);
 	virtual void _reset_counters() override;
 
-	static void _thread_connection(void *p_userdata);
-	static void _thread_image_decoder(void *p_userdata);
+	THREAD_FUNC void _thread_connection(THREAD_DATA p_userdata);
+	THREAD_FUNC void _thread_image_decoder(THREAD_DATA p_userdata);
 
-	static void _connection_loop(Ref<ConnectionThreadParams> con_thread);
+	static void _connection_loop(ConnectionThreadParamsClient *con_thread);
 	static GRDevice::AuthResult _auth_on_server(GRClient *dev, Ref<PacketPeerStream> &con);
 
 protected:
@@ -201,9 +201,10 @@ public:
 	String get_device_id();
 
 	StreamState get_stream_state();
-	void send_packet(Ref<GRPacket> packet);
+
 	bool is_stream_active();
 	bool is_connected_to_host();
+	Node *get_custom_input_scene();
 	String get_address();
 	bool set_address(String ip);
 	bool set_address_port(String ip, uint16_t _port);
@@ -212,8 +213,8 @@ public:
 	void set_server_setting(TypesOfServerSettings param, Variant value);
 	void disable_overriding_server_settings();
 
-	GRClient();
-	~GRClient();
+	void _init();
+	void _deinit();
 };
 
 class GRInputCollector : public Node {
@@ -227,7 +228,7 @@ private:
 	GRInputCollector **this_in_client = nullptr; //somebody help
 
 	class TextureRect *texture_rect = nullptr;
-	Vector<Ref<GRInputData> > collected_input_data;
+	std::vector<Ref<GRInputData> > collected_input_data;
 	class Control *parent;
 	bool capture_only_when_control_in_focus = false;
 	bool capture_pointer_only_when_hover_control = true;
@@ -263,8 +264,10 @@ public:
 
 	Ref<class GRPacketInputData> get_collected_input_data();
 
-	GRInputCollector();
-	~GRInputCollector();
+	void _init();
+	void _deinit();
+
+	GRInputCollector(GRClient *dev) : dev(dev) {}
 };
 
 class GRTextureRect : public TextureRect {
@@ -277,14 +280,17 @@ class GRTextureRect : public TextureRect {
 
 protected:
 	static void _bind_methods();
+	void _notification(int p_notification);
 
 public:
-	GRTextureRect();
-	~GRTextureRect();
+	void _init();
+	void _deinit();
+
+	GRTextureRect(GRClient *dev) : dev(dev) {}
 };
 
-VARIANT_ENUM_CAST(ConnectionType)
-VARIANT_ENUM_CAST(StretchMode)
-VARIANT_ENUM_CAST(StreamState)
+VARIANT_ENUM_CAST(GRClient::ConnectionType)
+VARIANT_ENUM_CAST(GRClient::StretchMode)
+VARIANT_ENUM_CAST(GRClient::StreamState)
 
 #endif // !NO_GODOTREMOTE_CLIENT

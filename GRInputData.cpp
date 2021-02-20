@@ -35,7 +35,6 @@ Ref<GRInputData> GRInputData::create(const PoolByteArray &buf) {
 			// ADDITIONAL CLASSES
 		case InputType::_InputDeviceSensors:
 			CREATE(GRInputDeviceSensorsData);
-
 			// INPUT EVENTS
 		case InputType::_InputEvent:
 		case InputType::_InputEventWithModifiers:
@@ -65,6 +64,8 @@ Ref<GRInputData> GRInputData::create(const PoolByteArray &buf) {
 			CREATE(GRIEDataScreenDrag);
 		case InputType::_InputEventScreenTouch:
 			CREATE(GRIEDataScreenTouch);
+		default:
+			break;
 	}
 #undef CREATE
 
@@ -157,6 +158,8 @@ Ref<InputEvent> GRInputDataEvent::construct_event(const Rect2 &rect) {
 			CONSTRUCT(InputEventScreenDrag);
 		case InputType::_InputEventScreenTouch:
 			CONSTRUCT(InputEventScreenTouch);
+		default:
+			break;
 	}
 
 #undef CONSTRUCT

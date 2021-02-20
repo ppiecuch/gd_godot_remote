@@ -6,11 +6,11 @@
 using namespace GRUtils;
 
 Ref<GRPacket> GRPacket::create(const PoolByteArray &bytes) {
-	if (bytes.empty()) {
+	if (bytes.size() == 0) {
 		ERR_FAIL_V_MSG(Ref<GRPacket>(), "Can't create GRPacket from empty data!");
 	}
 
-	PacketType type = (PacketType)bytes[0];
+	PacketType type = (PacketType)((PoolByteArray)bytes)[0];
 	Ref<StreamPeerBuffer> buf(memnew(StreamPeerBuffer));
 	buf->set_data_array(bytes);
 
@@ -43,6 +43,8 @@ Ref<GRPacket> GRPacket::create(const PoolByteArray &bytes) {
 			CREATE(GRPacketClientStreamOrientation);
 		case PacketType::ClientStreamAspect:
 			CREATE(GRPacketClientStreamAspect);
+		case PacketType::CustomUserData:
+			CREATE(GRPacketCustomUserData);
 
 			// Requests
 		case PacketType::Ping:
@@ -94,7 +96,7 @@ Ref<StreamPeerBuffer> GRPacketImageData::_get_data() {
 bool GRPacketImageData::_create(Ref<StreamPeerBuffer> buf) {
 	GRPacket::_create(buf);
 	is_empty = (bool)buf->get_8();
-	compression = (ImageCompressionType)(int)buf->get_32();
+	compression = buf->get_32();
 	size = buf->get_var();
 	format = buf->get_var();
 	img_data = buf->get_var();
@@ -132,7 +134,7 @@ int GRPacketImageData::get_format() {
 }
 
 void GRPacketImageData::set_compression_type(int type) {
-	compression = (ImageCompressionType)type;
+	compression = type;
 }
 
 void GRPacketImageData::set_start_time(uint64_t time) {
@@ -165,11 +167,12 @@ Ref<StreamPeerBuffer> GRPacketInputData::_get_data() {
 	auto buf = GRPacket::_get_data();
 	int count = 0;
 
-	for (int i = 0; i < inputs.size(); i++) {
-		if (inputs[i].is_valid()) {
+	for (int i = 0; i < (int)inputs.size(); i++) {
+		Ref<GRInputData> inp = inputs[i];
+		if (inp.is_valid()) {
 			count++;
 		} else {
-			inputs.remove(i);
+			inputs.erase(inputs.begin() + i);
 			i--;
 		}
 	}
@@ -203,15 +206,16 @@ Ref<GRInputData> GRPacketInputData::get_input_data(int idx) {
 }
 
 void GRPacketInputData::remove_input_data(int idx) {
-	ERR_FAIL_INDEX(idx, inputs.size());
-	inputs.remove(idx);
+	ERR_FAIL_INDEX(idx, (int)inputs.size());
+
+	inputs.erase(inputs.begin() + idx);
 }
 
-void GRPacketInputData::add_input_data(Ref<class GRInputData> &input) {
+void GRPacketInputData::add_input_data(Ref<GRInputData> &input) {
 	inputs.push_back(input);
 }
 
-void GRPacketInputData::set_input_data(Vector<Ref<class GRInputData> > &_inputs) {
+void GRPacketInputData::set_input_data(std::vector<Ref<GRInputData> > &_inputs) {
 	inputs = _inputs;
 }
 
@@ -219,21 +223,21 @@ void GRPacketInputData::set_input_data(Vector<Ref<class GRInputData> > &_inputs)
 // SERVER SETTINGS
 Ref<StreamPeerBuffer> GRPacketServerSettings::_get_data() {
 	auto buf = GRPacket::_get_data();
-	buf->put_var(settings);
+	buf->put_var(map_to_dict(settings));
 	return buf;
 }
 
 bool GRPacketServerSettings::_create(Ref<StreamPeerBuffer> buf) {
 	GRPacket::_create(buf);
-	settings = buf->get_var();
+	settings = dict_to_map<int, Variant>(buf->get_var());
 	return true;
 }
 
-Dictionary GRPacketServerSettings::get_settings() {
+std::map<int, Variant> GRPacketServerSettings::get_settings() {
 	return settings;
 }
 
-void GRPacketServerSettings::set_settings(Dictionary &_settings) {
+void GRPacketServerSettings::set_settings(std::map<int, Variant> &_settings) {
 	settings = _settings;
 }
 
@@ -370,4 +374,47 @@ float GRPacketClientStreamAspect::get_aspect() {
 
 void GRPacketClientStreamAspect::set_aspect(float val) {
 	stream_aspect = val;
+}
+
+//////////////////////////////////////////////////////////////////////////
+// CUSTOM USER DATA
+
+Ref<StreamPeerBuffer> GRPacketCustomUserData::_get_data() {
+	auto buf = GRPacket::_get_data();
+	buf->put_string(packet_id);
+	buf->put_8(full_objects);
+	buf->put_var(user_data, full_objects);
+	return buf;
+}
+
+bool GRPacketCustomUserData::_create(Ref<StreamPeerBuffer> buf) {
+	GRPacket::_create(buf);
+	packet_id = buf->get_string();
+	full_objects = buf->get_8();
+	user_data = buf->get_var(full_objects);
+	return true;
+}
+
+Variant GRPacketCustomUserData::get_packet_id() {
+	return packet_id;
+}
+
+void GRPacketCustomUserData::set_packet_id(Variant val) {
+	packet_id = val;
+}
+
+bool GRPacketCustomUserData::get_send_full_objects() {
+	return full_objects;
+}
+
+void GRPacketCustomUserData::set_send_full_objects(bool val) {
+	full_objects = val;
+}
+
+Variant GRPacketCustomUserData::get_user_data() {
+	return user_data;
+}
+
+void GRPacketCustomUserData::set_user_data(Variant val) {
+	user_data = val;
 }

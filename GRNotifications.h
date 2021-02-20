@@ -1,6 +1,8 @@
 /* GRNotifications.h */
 #pragma once
 
+#include <vector>
+
 #include "GRUtils.h"
 #include "core/reference.h"
 #include "scene/gui/panel_container.h"
@@ -9,33 +11,30 @@
 class GRNotificationPanel;
 class GRNotificationStyle;
 
-enum NotificationIcon {
-	None,
-	_Error,
-	Warning,
-	Success,
-	Fail,
-
-	MAX,
-};
-
-enum NotificationsPosition {
-	//TL, TC, TR,
-	//BL, BC, BR,
-	TL = 0,
-	TC = 1,
-	TR = 2,
-	BL = 3,
-	BC = 4,
-	BR = 5,
-};
-
 class GRNotifications : public CanvasLayer {
 	GDCLASS(GRNotifications, CanvasLayer);
 
 	friend class GRNotificationPanel;
 
 public:
+	enum NotificationIcon {
+		ICON_NONE,
+		ICON_ERROR,
+		ICON_WARNING,
+		ICON_SUCCESS,
+		ICON_FAIL,
+		ICON_MAX,
+	};
+
+	enum NotificationsPosition {
+		TOP_LEFT = 0,
+		TOP_CENTER = 1,
+		TOP_RIGHT = 2,
+		BOTTOM_LEFT = 3,
+		BOTTOM_CENTER = 4,
+		BOTTOM_RIGHT = 5,
+	};
+
 private:
 	static GRNotifications *singleton;
 
@@ -43,13 +42,13 @@ private:
 
 	float notifications_duration = 2.0;
 	bool notifications_enabled = true;
-	NotificationsPosition notifications_position = NotificationsPosition::TL;
+	NotificationsPosition notifications_position = NotificationsPosition::TOP_LEFT;
 
 	class VBoxContainer *notif_list_node = nullptr;
-	List<GRNotificationPanel *> notifications;
+	std::vector<GRNotificationPanel *> notifications;
 	Ref<GRNotificationStyle> style;
 
-	List<GRNotificationPanel *> _get_notifications_with_title(String title);
+	std::vector<GRNotificationPanel *> _get_notifications_with_title(String title);
 	GRNotificationPanel *_get_notification(String title);
 
 	void _set_all_notifications_positions(NotificationsPosition pos);
@@ -86,18 +85,18 @@ public:
 	static void set_notifications_style(Ref<class GRNotificationStyle> _style);
 
 	// append text to existing notification or add new notification
-	static void add_notification_or_append_string(String title, String text, NotificationIcon icon = NotificationIcon::None, bool new_string = true, float duration_multiplier = 1.f);
+	static void add_notification_or_append_string(String title, String text, NotificationIcon icon = NotificationIcon::ICON_NONE, bool new_string = true, float duration_multiplier = 1.f);
 
 	// update text in existing notification or add new notification
-	static void add_notification_or_update_line(String title, String id, String text, NotificationIcon icon = NotificationIcon::None, float duration_multiplier = 1.f);
+	static void add_notification_or_update_line(String title, String id, String text, NotificationIcon icon = NotificationIcon::ICON_NONE, float duration_multiplier = 1.f);
 
-	static void add_notification(String title, String text, NotificationIcon icon = NotificationIcon::None, bool update_existing = true, float duration_multiplier = 1.f);
+	static void add_notification(String title, String text, NotificationIcon icon = NotificationIcon::ICON_NONE, bool update_existing = true, float duration_multiplier = 1.f);
 	static void remove_notification(String title, bool all_entries = true);
 	static void remove_notification_exact(Node *_notif);
 	static void clear_notifications();
 	static GRNotifications *get_singleton();
-	GRNotifications();
-	~GRNotifications();
+	void _init();
+	void _deinit();
 };
 
 class GRNotificationPanel : public PanelContainer {
@@ -108,10 +107,11 @@ class GRNotificationPanel : public PanelContainer {
 protected:
 	GRNotifications *owner = nullptr;
 
-	NotificationIcon notification_icon = NotificationIcon::None;
+	GRNotifications::NotificationIcon notification_icon = GRNotifications::NotificationIcon::ICON_NONE;
 	float duration_mul = 1.f;
 	bool is_hovered = false;
 	Ref<GRNotificationStyle> style;
+
 	static Ref<GRNotificationStyle> _default_style;
 #ifndef NO_GODOTREMOTE_DEFAULT_RESOURCES
 	static Dictionary _default_textures;
@@ -143,14 +143,14 @@ protected:
 public:
 	static void clear_styles();
 
-	void set_notification_position(NotificationsPosition position);
-	virtual void set_data(GRNotifications *_owner, String title, String text, NotificationIcon icon, float duration_multiplier = 1.f, Ref<GRNotificationStyle> _style = Ref<GRNotificationStyle>());
+	void set_notification_position(GRNotifications::NotificationsPosition position);
+	virtual void set_data(GRNotifications *_owner, String title, String text, GRNotifications::NotificationIcon icon, float duration_multiplier = 1.f, Ref<GRNotificationStyle> _style = Ref<GRNotificationStyle>());
 	String get_title();
 	String get_text();
 	void update_text(String text);
 
-	GRNotificationPanel();
-	~GRNotificationPanel();
+	void _init();
+	void _deinit();
 };
 
 class GRNotificationPanelUpdatable : public GRNotificationPanel {
@@ -159,13 +159,14 @@ class GRNotificationPanelUpdatable : public GRNotificationPanel {
 	friend GRNotifications;
 
 protected:
-	Dictionary lines;
+	std::map<String, String> lines;
 	String _get_text_from_lines();
 	bool configured = false;
 	static void _bind_methods();
+	void _notification(int p_notification);
 
 public:
-	void set_updatable_line(GRNotifications *_owner, String title, String id, String text, NotificationIcon icon, float duration_multiplier = 1.f, Ref<GRNotificationStyle> _style = Ref<GRNotificationStyle>());
+	void set_updatable_line(GRNotifications *_owner, String title, String id, String text, GRNotifications::NotificationIcon icon, float duration_multiplier = 1.f, Ref<GRNotificationStyle> _style = Ref<GRNotificationStyle>());
 	void remove_updatable_line(String id);
 	void clear_lines();
 };
@@ -181,14 +182,12 @@ private:
 	Ref<Texture> close_button_icon;
 	Ref<Font> title_font;
 	Ref<Font> text_font;
-	Dictionary icons;
+	Ref<Texture> n_icons[GRNotifications::NotificationIcon::ICON_MAX];
 
 protected:
 	static void _bind_methods();
 
 public:
-	~GRNotificationStyle();
-
 	void set_panel_style(Ref<StyleBox> style);
 	Ref<StyleBox> get_panel_style();
 
@@ -204,9 +203,12 @@ public:
 	void set_text_font(Ref<Font> font);
 	Ref<Font> get_text_font();
 
-	void set_notification_icon(NotificationIcon notification_icon, Ref<Texture> icon_texture);
-	Ref<Texture> get_notification_icon(NotificationIcon notification_icon);
+	void set_notification_icon(GRNotifications::NotificationIcon notification_icon, Ref<Texture> icon_texture);
+	Ref<Texture> get_notification_icon(GRNotifications::NotificationIcon notification_icon);
+
+	void _init();
+	void _deinit();
 };
 
-VARIANT_ENUM_CAST(NotificationsPosition)
-VARIANT_ENUM_CAST(NotificationIcon)
+VARIANT_ENUM_CAST(GRNotifications::NotificationsPosition)
+VARIANT_ENUM_CAST(GRNotifications::NotificationIcon)
