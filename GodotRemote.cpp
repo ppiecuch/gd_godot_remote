@@ -40,23 +40,26 @@ GodotRemote *GodotRemote::get_singleton() {
 	return singleton;
 }
 
-GodotRemote::GodotRemote() {
+void GodotRemote::_init() {
 	if (!singleton)
 		singleton = this;
 
 	register_and_load_settings();
-	if (!Engine::get_singleton()->is_editor_hint()) {
-		call_deferred("_create_notification_manager");
-		if (is_autostart)
-			call_deferred("create_and_start_device");
-	}
+	LEAVE_IF_EDITOR();
+
+	GRUtils::init();
+
+	call_deferred("_create_notification_manager");
+	if (is_autostart)
+		call_deferred("create_and_start_device", DeviceType::DEVICE_AUTO);
 
 #ifdef TOOLS_ENABLED
 	call_deferred("_prepare_editor");
 #endif
 }
 
-GodotRemote::~GodotRemote() {
+void GodotRemote::_deinit() {
+	LEAVE_IF_EDITOR();
 	remove_remote_device();
 	_remove_notifications_manager();
 
@@ -64,7 +67,10 @@ GodotRemote::~GodotRemote() {
 	call_deferred("_adb_start_timer_timeout");
 #endif
 
-    singleton = NULL;
+	if (singleton == this) {
+		singleton = nullptr;
+	}
+	GRUtils::deinit();
 }
 
 void GodotRemote::_bind_methods() {
@@ -138,7 +144,11 @@ void GodotRemote::_bind_methods() {
 
 void GodotRemote::_notification(int p_notification) {
 	switch (p_notification) {
+		case NOTIFICATION_POSTINITIALIZE:
+			_init();
+			break;
 		case NOTIFICATION_PREDELETE:
+			_deinit();
 			break;
 	}
 }
@@ -159,7 +169,7 @@ bool GodotRemote::create_remote_device(DeviceType type) {
 
 	switch (type) {
 		// automatically start server if it not a standalone build
-		case GodotRemote::DEVICE_AUTO:
+		case DeviceType::DEVICE_AUTO:
 			if (!OS::get_singleton()->has_feature("standalone")) {
 #ifndef NO_GODOTREMOTE_SERVER
 				d = memnew(GRServer);
@@ -168,14 +178,14 @@ bool GodotRemote::create_remote_device(DeviceType type) {
 #endif
 			}
 			break;
-		case GodotRemote::DEVICE_SERVER:
+		case DeviceType::DEVICE_SERVER:
 #ifndef NO_GODOTREMOTE_SERVER
 			d = memnew(GRServer);
 #else
 			ERR_FAIL_V_MSG(false, "Server not included in this build!");
 #endif
 			break;
-		case GodotRemote::DEVICE_CLIENT:
+		case DeviceType::DEVICE_CLIENT:
 #ifndef NO_GODOTREMOTE_CLIENT
 			d = memnew(GRClient);
 #else
@@ -260,9 +270,11 @@ void GodotRemote::register_and_load_settings() {
 }
 
 void GodotRemote::_create_notification_manager() {
-	GRNotifications *notif = memnew(GRNotifications);
-	SceneTree::get_singleton()->get_root()->call_deferred("add_child", notif);
-	SceneTree::get_singleton()->get_root()->call_deferred("move_child", notif, 0);
+	if (ST()) {
+		GRNotifications *notif = memnew(GRNotifications);
+		SceneTree::get_singleton()->get_root()->call_deferred("add_child", notif);
+		SceneTree::get_singleton()->get_root()->call_deferred("move_child", notif, 0);
+	}
 }
 
 void GodotRemote::_remove_notifications_manager() {
@@ -386,7 +398,7 @@ void GodotRemote::set_notifications_style(Ref<GRNotificationStyle> _style) const
 Ref<GRNotificationStyle> GodotRemote::get_notifications_style() const {
 	return GRNotifications::get_notifications_style();
 }
-void GodotRemote::add_notification_or_append_string(String title, String text, GRNotifications::NotificationIcon icon, bool new_string) {
+void GodotRemote::add_notification_or_append_string(String title, String text, GRNotifications::NotificationIcon icon, bool new_string, float duration_multiplier) const {
 	GRNotifications::add_notification_or_append_string(title, text, icon, new_string);
 }
 void GodotRemote::add_notification_or_update_line(String title, String id, String text, GRNotifications::NotificationIcon icon, float duration_multiplier) const {

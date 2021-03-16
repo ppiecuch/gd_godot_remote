@@ -66,14 +66,19 @@ void GRServer::_bind_methods() {
 
 void GRServer::_notification(int p_notification) {
 	switch (p_notification) {
-		case NOTIFICATION_CRASH:
-		case NOTIFICATION_EXIT_TREE:
+		case NOTIFICATION_POSTINITIALIZE: {
+			_init();
+		} break;
 		case NOTIFICATION_PREDELETE: {
+			_deinit();
+		} break;
+		case NOTIFICATION_EXIT_TREE: {
 			if (get_status() == (int)WorkingStatus::STATUS_WORKING) {
 				_internal_call_only_deffered_stop();
-			}
-			break;
+			} break;
 		}
+		case NOTIFICATION_CRASH: {
+		} break;
 	}
 }
 
@@ -198,6 +203,7 @@ int GRServer::get_custom_input_scene_compression_type() {
 
 void GRServer::_init() {
 	set_name("GodotRemoteServer");
+	LEAVE_IF_EDITOR();
 	tcp_server.instance();
 	custom_input_scene_regex_resource_finder.instance();
 	custom_input_scene_regex_resource_finder->compile(custom_input_scene_regex_resource_finder_pattern);
@@ -205,10 +211,10 @@ void GRServer::_init() {
 }
 
 void GRServer::_deinit() {
+	LEAVE_IF_EDITOR();
 	if (get_status() == (int)WorkingStatus::STATUS_WORKING) {
 		_internal_call_only_deffered_stop();
 	}
-	connection_mutex.unlock();
 	custom_input_scene_regex_resource_finder.unref();
 	deinit_server_utils();
 }
@@ -231,6 +237,7 @@ void GRServer::_internal_call_only_deffered_start() {
 	if (server_thread_listen) {
 		server_thread_listen->close_thread();
 		memdelete(server_thread_listen);
+		server_thread_listen = nullptr;
 	}
 
 	if (!resize_viewport) {
@@ -238,8 +245,7 @@ void GRServer::_internal_call_only_deffered_start() {
 		add_child(resize_viewport);
 	}
 
-	server_thread_listen = memnew(ListenerThreadParamsServer);
-	server_thread_listen->dev = this;
+	server_thread_listen = memnew(ListenerThreadParamsServer(this));
 	server_thread_listen->thread.start(&_thread_listen, server_thread_listen);
 
 	set_status(WorkingStatus::STATUS_WORKING);
@@ -266,12 +272,14 @@ void GRServer::_internal_call_only_deffered_stop() {
 	if (server_thread_listen) {
 		server_thread_listen->close_thread();
 		memdelete(server_thread_listen);
+		server_thread_listen = nullptr;
 	}
 
 	if (resize_viewport)
 		resize_viewport->set_process(false);
 	call_deferred("_remove_resize_viewport", resize_viewport);
 	resize_viewport = nullptr;
+	_send_queue_resize(0);
 	set_status(WorkingStatus::STATUS_STOPPED);
 
 	GRNotifications::add_notification("Godot Remote Server Status", "Server stopped", GRNotifications::NotificationIcon::ICON_FAIL);
@@ -543,7 +551,7 @@ void GRServer::_thread_listen(THREAD_DATA p_userdata) {
 		if (srv->is_connection_available()) {
 			Ref<StreamPeerTCP> con = srv->take_connection();
 			con->set_no_delay(true);
-			String address = CON_ADDRESS(con);
+			String address = CONNECTION_ADDRESS(con);
 
 			Ref<PacketPeerStream> ppeer(memnew(PacketPeerStream));
 			ppeer->set_stream_peer(con);
@@ -560,10 +568,8 @@ void GRServer::_thread_listen(THREAD_DATA p_userdata) {
 
 				switch (res) {
 					case GRDevice::AuthResult::OK:
-						connection_thread_info = memnew(ConnectionThreadParamsServer);
+						connection_thread_info = memnew(ConnectionThreadParamsServer(dev));
 						connection_thread_info->device_id = dev_id;
-
-						connection_thread_info->dev = dev;
 						connection_thread_info->ppeer = ppeer;
 
 						dev->custom_input_scene_was_updated = false;
@@ -623,7 +629,7 @@ void GRServer::_thread_connection(THREAD_DATA p_userdata) {
 	Error err = Error::OK;
 
 	Input::MouseMode mouse_mode = Input::MOUSE_MODE_VISIBLE;
-	String address = CON_ADDRESS(connection);
+	String address = CONNECTION_ADDRESS(connection);
 	Thread::set_name("GR_connection " + address);
 
 	uint64_t time64 = os->get_ticks_usec();
@@ -1040,7 +1046,7 @@ GRServer::AuthResult GRServer::_auth_client(GRServer *dev, Ref<PacketPeerStream>
 	}
 
 	Ref<StreamPeerTCP> con = ppeer->get_stream_peer();
-	String address = CON_ADDRESS(con);
+	String address = CONNECTION_ADDRESS(con);
 	uint32_t time = 0;
 
 	Error err = OK;
@@ -1325,6 +1331,9 @@ void GRSViewport::_set_img_data(ImgProcessingStorageViewport *_data) {
 	last_image_data = _data;
 	_THREAD_SAFE_UNLOCK_;
 }
+void GRSViewport::_on_renderer_deleting() {
+	renderer = nullptr;
+}
 
 void GRSViewport::_notification(int p_notification) {
 	TimeCountInit();
@@ -1527,7 +1536,7 @@ void GRSViewportRenderer::_bind_methods() {
 void GRSViewportRenderer::_notification(int p_notification) {
 	switch (p_notification) {
 		case NOTIFICATION_POSTINITIALIZE:
-			init();
+			_init();
 			break;
 		case NOTIFICATION_PREDELETE:
 			_deinit();

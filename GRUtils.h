@@ -2,8 +2,11 @@
 #ifndef GRUTILS_H
 #define GRUTILS_H
 
-#include <vector>
+#include <algorithm>
+#include <deque>
 #include <map>
+#include <queue>
+#include <vector>
 
 #include "core/object.h"
 #include "core/image.h"
@@ -50,6 +53,7 @@
 #define min(x, y) (x < y ? x : y)
 #define _log(val, ll) log_str(val, ll, __FILE__, __LINE__)
 #define is_vector_contains(vec, val) (std::find(vec.begin(), vec.end(), val) != vec.end())
+#define sleep_usec(usec) OS::get_singleton()->delay_usec(usec)
 
 #define GR_VERSION(x, y, z)                            \
 	if (_grutils_data->internal_VERSION.size() == 0) { \
@@ -66,7 +70,7 @@
 		_grutils_data->internal_PACKET_HEADER.append(d);     \
 	}
 
-#define CON_ADDRESS(con) str(con->get_connected_host()) + ":" + str(con->get_connected_port())
+#define CONNECTION_ADDRESS(con) str(con->get_connected_host()) + ":" + str(con->get_connected_port())
 
 // Get Project Setting
 #define GET_PS(setting_name) \
@@ -77,6 +81,8 @@
 
 #define THREAD_FUNC static
 #define THREAD_DATA void *
+
+#define ST() SceneTree::get_singleton()
 
 enum LogLevel {
 	LL_DEBUG = __LL_DEBUG,
@@ -89,6 +95,51 @@ enum LogLevel {
 namespace GRUtils {
 // DEFINES
 
+template <typename T, typename Container = std::deque<T> >
+class iterable_queue : public std::queue<T, Container> {
+public:
+	typedef typename Container::iterator iterator;
+	typedef typename Container::const_iterator const_iterator;
+
+	iterator begin() { return this->c.begin(); }
+	iterator end() { return this->c.end(); }
+	const_iterator begin() const { return this->c.begin(); }
+	const_iterator end() const { return this->c.end(); }
+	void add_value_limited(T value, uint32_t limit) {
+		if (value > 100000)
+			this->push(100000);
+		else
+			this->push(value);
+		while (this->size() > limit) {
+			this->pop();
+		}
+	}
+};
+
+template <typename T>
+inline void calculate_avg_min_max_values(const iterable_queue<T> &v, float *avg_val, float *min_val, float *max_val, float(modifier)(double)) {
+	if (v.size() > 0) {
+		double sum = 0;
+		*min_val = (float)v.back();
+		*max_val = (float)v.back();
+
+		for (T i : v) {
+			sum += i;
+			if (i < *min_val)
+				*min_val = (float)i;
+			else if (i > *max_val)
+				*max_val = (float)i;
+		}
+		*avg_val = modifier(sum / v.size());
+		*min_val = modifier(*min_val);
+		*max_val = modifier(*max_val);
+	} else {
+		*avg_val = 0;
+		*min_val = 0;
+		*max_val = 0;
+	}
+}
+
 class GRUtilsData : public Object {
 	GDCLASS(GRUtilsData, Object);
 
@@ -98,6 +149,11 @@ public:
 	PoolByteArray internal_VERSION;
 };
 
+extern GRUtilsData *_grutils_data;
+
+extern void init();
+extern void deinit();
+
 #ifndef NO_GODOTREMOTE_SERVER
 class GRUtilsDataServer {
 public:
@@ -106,14 +162,7 @@ public:
 };
 
 extern GRUtilsDataServer *_grutils_data_server;
-#endif
 
-extern GRUtilsData *_grutils_data;
-
-extern void init();
-extern void deinit();
-
-#ifndef NO_GODOTREMOTE_SERVER
 extern void init_server_utils();
 extern void deinit_server_utils();
 extern PoolByteArray compress_buffer;
@@ -144,9 +193,7 @@ extern void set_gyroscope(const Vector3 &p_gyroscope);
 // LITERALS
 
 // conversion from usec to msec. most useful to OS::delay_usec()
-constexpr uint32_t operator"" _ms(unsigned long long val) {
-	return val * 1000;
-}
+constexpr uint32_t operator"" _ms(unsigned long long val) { return val * 1000; }
 
 // IMPLEMENTATINS
 

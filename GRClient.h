@@ -51,7 +51,8 @@ private:
 		int format = 0;
 		ImageCompressionType compression_type = ImageCompressionType::COMPRESSION_UNCOMPRESSED;
 		Size2 size;
-		bool *_is_processing_img = nullptr;
+		bool _is_processing_img = false;
+ 		bool _thread_closing = false;
 
 		void _init() {
 			LEAVE_IF_EDITOR();

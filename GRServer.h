@@ -29,6 +29,7 @@ private:
 			thread.wait_to_finish();
 		}
 
+		ListenerThreadParamsServer(GRServer *dev) : dev(dev) {}
 		~ListenerThreadParamsServer() {
 			LEAVE_IF_EDITOR();
 			close_thread();
@@ -39,8 +40,8 @@ private:
 		GDCLASS(ConnectionThreadParamsServer, Object);
 
 	public:
-		String device_id = "";
 		GRServer *dev = nullptr;
+		String device_id = "";
 		Ref<PacketPeerStream> ppeer;
 		Thread thread;
 		bool break_connection = false;
@@ -51,6 +52,7 @@ private:
 			thread.wait_to_finish();
 		}
 
+		ConnectionThreadParamsServer(GRServer *dev) : dev(dev) {}
 		~ConnectionThreadParamsServer() {
 			LEAVE_IF_EDITOR();
 			close_thread();

@@ -169,8 +169,6 @@ void GRClient::_deinit() {
 	}
 	set_control_to_show_in(nullptr, 0);
 
-	send_queue_mutex.unlock();
-
 #ifndef NO_GODOTREMOTE_DEFAULT_RESOURCES
 	no_signal_mat.unref();
 	no_signal_image.unref();
@@ -190,10 +188,14 @@ void GRClient::_internal_call_only_deffered_start() {
 			ERR_FAIL_MSG("Can't start stopping GodotRemote Client");
 	}
 
-	_log("Starting GodotRemote client", LogLevel::LL_DEBUG);
+	_log("Starting GodotRemote client. Version: " + GodotRemote::get_singleton()->get_version(), LogLevel::LL_NORMAL);
 	set_status(WorkingStatus::STATUS_STARTING);
 
 	if (thread_connection) {
+		connection_mutex.lock();
+ 		thread_connection->break_connection = true;
+ 		thread_connection->stop_thread = true;
+ 		connection_mutex.unlock();
 		thread_connection->close_thread();
 		memdelete(thread_connection);
 	}
@@ -221,8 +223,8 @@ void GRClient::_internal_call_only_deffered_stop() {
 	set_status(WorkingStatus::STATUS_STOPPING);
 	_remove_custom_input_scene();
 
-	connection_mutex.lock();
 	if (thread_connection) {
+		connection_mutex.lock();
 		thread_connection->break_connection = true;
 		thread_connection->stop_thread = true;
 		connection_mutex.unlock();
@@ -230,8 +232,6 @@ void GRClient::_internal_call_only_deffered_stop() {
 		memdelete(thread_connection);
 	}
 	_send_queue_resize(0);
-	send_queue_mutex.unlock();
-	connection_mutex.unlock();
 
 	call_deferred("_update_stream_texture_state", StreamState::STREAM_NO_SIGNAL);
 	set_status(WorkingStatus::STATUS_STOPPED);
@@ -583,6 +583,7 @@ void GRClient::_load_custom_input_scene(Ref<GRPacketCustomInputScene> _data) {
 						control_to_show_in->add_child(custom_input_scene);
 						custom_input_scene->connect("tree_exiting", this, "_on_node_deleting", vec_args({ (int)DeletingVarName::CUSTOM_INPUT_SCENE }));
 
+						_reset_counters();
 						emit_signal("custom_input_scene_added");
 					}
 				}
@@ -954,13 +955,15 @@ void GRClient::_connection_loop(ConnectionThreadParamsClient *con_thread) {
 	GRClient *dev = con_thread->dev;
 	Ref<StreamPeerTCP> connection = con_thread->peer;
 	Ref<PacketPeerStream> ppeer = con_thread->ppeer;
+	// Data sync with _img_thread
+ 	ImgProcessingStorageClient *ipsc = memnew(ImgProcessingStorageClient(dev));
 
 	Thread _img_thread;
-	bool _is_processing_img = false;
+	_img_thread.start(&_thread_image_decoder, ipsc);
 
 	OS *os = OS::get_singleton();
 	Error err = Error::OK;
-	String address = CON_ADDRESS(connection);
+	String address = CONNECTION_ADDRESS(connection);
 
 	dev->_reset_counters();
 
@@ -976,16 +979,10 @@ void GRClient::_connection_loop(ConnectionThreadParamsClient *con_thread) {
 	bool ping_sended = false;
 
 	TimeCountInit();
-	while (!con_thread->break_connection && connection->is_connected_to_host()) {
+	while (!con_thread->break_connection && !con_thread->stop_thread && connection->is_connected_to_host()) {
 		dev->connection_mutex.lock();
-		if (con_thread->break_connection || !connection->is_connected_to_host())
-			break;
 		TimeCount("Cycle start");
 		uint64_t cycle_start_time = os->get_ticks_usec();
-
-		if (!_is_processing_img) {
-			_img_thread.wait_to_finish();
-		}
 
 		bool nothing_happens = true;
 		uint64_t start_while_time = 0;
@@ -997,6 +994,7 @@ void GRClient::_connection_loop(ConnectionThreadParamsClient *con_thread) {
 		bool is_queued_send = false; // this placed here for android compiler
 
 		// INPUT
+		TimeCountReset();
 		time64 = os->get_ticks_usec();
 		if ((time64 - prev_send_input_time) > send_data_time_us) {
 			prev_send_input_time = time64;
@@ -1019,6 +1017,7 @@ void GRClient::_connection_loop(ConnectionThreadParamsClient *con_thread) {
 		}
 
 		// PING
+		TimeCountReset();
 		time64 = os->get_ticks_usec();
 		if ((time64 - prev_ping_sending_time) > 100_ms && !ping_sended) {
 			nothing_happens = false;
@@ -1050,13 +1049,15 @@ void GRClient::_connection_loop(ConnectionThreadParamsClient *con_thread) {
 				}
 			}
 		}
-		if (is_queued_send)
+		if (is_queued_send) {
 			TimeCount("Send queued data");
+		}
 	end_send:
 
 		if (!connection->is_connected_to_host()) {
 			_log("Lost connection after sending!", LogLevel::LL_ERROR);
 			GRNotifications::add_notification("Error", "Lost connection after sending data!", GRNotifications::NotificationIcon::ICON_ERROR);
+			dev->connection_mutex.unlock();
 			continue;
 		}
 
@@ -1065,7 +1066,8 @@ void GRClient::_connection_loop(ConnectionThreadParamsClient *con_thread) {
 
 		// Send to processing one of buffered images
 		time64 = os->get_ticks_usec();
-		if (!_is_processing_img && !stream_queue.empty() && time64 >= next_image_required_frametime) {
+		TimeCountReset();
+		if (!ipsc->_is_processing_img && !stream_queue.empty() && time64 >= next_image_required_frametime) {
 			nothing_happens = false;
 			Ref<GRPacketImageData> pack = stream_queue.front();
 			stream_queue.erase(stream_queue.begin());
@@ -1081,22 +1083,16 @@ void GRClient::_connection_loop(ConnectionThreadParamsClient *con_thread) {
 			dev->_update_avg_fps(time64 - prev_display_image_time);
 			prev_display_image_time = time64;
 
-			_img_thread.wait_to_finish();
-
-			ImgProcessingStorageClient *ipsc = memnew(ImgProcessingStorageClient(dev));
-
 			if (pack->get_is_empty()) {
 				dev->_update_avg_fps(0);
 				dev->call_deferred("_update_texture_from_image", Ref<Image>());
 				dev->call_deferred("_update_stream_texture_state", StreamState::STREAM_NO_IMAGE);
-				memdelete(ipsc);
 			} else {
 				ipsc->tex_data = pack->get_image_data();
 				ipsc->compression_type = (ImageCompressionType)pack->get_compression_type();
 				ipsc->size = pack->get_size();
 				ipsc->format = pack->get_format();
-				ipsc->_is_processing_img = &_is_processing_img;
-				_img_thread.start(&_thread_image_decoder, ipsc);
+				ipsc->_is_processing_img = true;
 			}
 
 			pack.unref();
@@ -1118,6 +1114,7 @@ void GRClient::_connection_loop(ConnectionThreadParamsClient *con_thread) {
 		}
 
 		// Get some packets
+		TimeCountReset();
 		start_while_time = os->get_ticks_usec();
 		while (ppeer->get_available_packet_count() > 0 && (os->get_ticks_usec() - start_while_time) <= send_data_time_us / 2) {
 			nothing_happens = false;
@@ -1239,7 +1236,6 @@ void GRClient::_connection_loop(ConnectionThreadParamsClient *con_thread) {
 
 	dev->_send_queue_resize(0);
 
-	dev->connection_mutex.unlock();
 	stream_queue.clear();
 
 	if (connection->is_connected_to_host()) {
@@ -1250,7 +1246,8 @@ void GRClient::_connection_loop(ConnectionThreadParamsClient *con_thread) {
 		GRNotifications::add_notification("Disconnected", "Lost connection to " + address, GRNotifications::NotificationIcon::ICON_FAIL, true, 1.f);
 	}
 
-	_img_thread.wait_to_finish();
+	if (_img_thread.is_started())
+		_img_thread.wait_to_finish();
 
 	_log("Closing connection", LogLevel::LL_NORMAL);
 	con_thread->break_connection = true;
@@ -1258,56 +1255,58 @@ void GRClient::_connection_loop(ConnectionThreadParamsClient *con_thread) {
 
 void GRClient::_thread_image_decoder(THREAD_DATA p_userdata) {
 	ImgProcessingStorageClient *ipsc = (ImgProcessingStorageClient *)p_userdata;
-	*ipsc->_is_processing_img = true;
-
-	Error err = Error::OK;
 	GRClient *dev = ipsc->dev;
-	Ref<Image> img(memnew(Image));
-	ImageCompressionType type = ipsc->compression_type;
+	Error err = Error::OK;
 
-	TimeCountInit();
-	switch (type) {
-		case ImageCompressionType::COMPRESSION_UNCOMPRESSED: {
-			img->create(ipsc->size.x, ipsc->size.y, false, (Image::Format)ipsc->format, ipsc->tex_data);
-			if (img->empty()) { // is NOT OK
-				err = Error::FAILED;
-				_log("Incorrect uncompressed image data.", LogLevel::LL_ERROR);
-				GRNotifications::add_notification("Stream Error", "Incorrect uncompressed image data.", GRNotifications::NotificationIcon::ICON_ERROR);
-			}
-			break;
+	while (!ipsc->_thread_closing) {
+		if (!ipsc->_is_processing_img) {
+			sleep_usec(1_ms);
+			continue;
 		}
-		case ImageCompressionType::COMPRESSION_JPG: {
-			err = img->load_jpg_from_buffer(ipsc->tex_data);
-			if (err || img->empty()) { // is NOT OK
-				_log("Can't decode JPG image.", LogLevel::LL_ERROR);
-				GRNotifications::add_notification("Stream Error", "Can't decode JPG image. Code: " + str(err), GRNotifications::NotificationIcon::ICON_ERROR);
-			}
-			break;
+
+		Ref<Image> img(memnew(Image));
+		ImageCompressionType type = ipsc->compression_type;
+
+ 		TimeCountInit();
+ 		switch (type) {
+ 			case ImageCompressionType::COMPRESSION_UNCOMPRESSED: {
+				img->create(ipsc->size.x, ipsc->size.y, false, (Image::Format)ipsc->format, ipsc->tex_data);
+				if (img->empty()) { // is NOT OK
+					err = Error::FAILED;
+					_log("Incorrect uncompressed image data.", LogLevel::LL_ERROR);
+					GRNotifications::add_notification("Stream Error", "Incorrect uncompressed image data.", GRNotifications::NotificationIcon::ICON_ERROR);
+				}
+			} break;
+			case ImageCompressionType::COMPRESSION_JPG: {
+				err = img->load_jpg_from_buffer(ipsc->tex_data);
+				if (err || img->empty()) { // is NOT OK
+					_log("Can't decode JPG image.", LogLevel::LL_ERROR);
+					GRNotifications::add_notification("Stream Error", "Can't decode JPG image. Code: " + str(err), GRNotifications::NotificationIcon::ICON_ERROR);
+				}
+			} break;
+			case ImageCompressionType::COMPRESSION_PNG: {
+				err = img->load_png_from_buffer(ipsc->tex_data);
+				if (err || img->empty()) { // is NOT OK
+					_log("Can't decode PNG image.", LogLevel::LL_ERROR);
+					GRNotifications::add_notification("Stream Error", "Can't decode PNG image. Code: " + str(err), GRNotifications::NotificationIcon::ICON_ERROR);
+				}
+			} break;
+			default:
+				_log("Not implemented image decoder type: " + str((int)type), LogLevel::LL_ERROR);
+				break;
 		}
-		case ImageCompressionType::COMPRESSION_PNG: {
-			err = img->load_png_from_buffer(ipsc->tex_data);
-			if (err || img->empty()) { // is NOT OK
-				_log("Can't decode PNG image.", LogLevel::LL_ERROR);
-				GRNotifications::add_notification("Stream Error", "Can't decode PNG image. Code: " + str(err), GRNotifications::NotificationIcon::ICON_ERROR);
+
+		if (!err) { // is OK
+			TimeCount("Create Image Time");
+			dev->call_deferred("_update_texture_from_image", img);
+
+			if (dev->signal_connection_state != StreamState::STREAM_ACTIVE) {
+				dev->call_deferred("_update_stream_texture_state", StreamState::STREAM_ACTIVE);
 			}
-			break;
 		}
-		default:
-			_log("Not implemented image decoder type: " + str((int)type), LogLevel::LL_ERROR);
-			break;
+
+		ipsc->_is_processing_img = false;
 	}
-
-	if (!err) { // is OK
-		TimeCount("Create Image Time");
-		dev->call_deferred("_update_texture_from_image", img);
-
-		if (dev->signal_connection_state != StreamState::STREAM_ACTIVE) {
-			dev->call_deferred("_update_stream_texture_state", StreamState::STREAM_ACTIVE);
-		}
-	}
-
-	*ipsc->_is_processing_img = false;
-	memdelete(ipsc);
 }
 
 GRDevice::AuthResult GRClient::_auth_on_server(GRClient *dev, Ref<PacketPeerStream> &ppeer) {
@@ -1330,7 +1329,7 @@ GRDevice::AuthResult GRClient::_auth_on_server(GRClient *dev, Ref<PacketPeerStre
 	}
 
 	Ref<StreamPeerTCP> con = ppeer->get_stream_peer();
-	String address = CON_ADDRESS(con);
+	String address = CONNECTION_ADDRESS(con);
 	uint32_t time = 0;
 
 	Error err = OK;

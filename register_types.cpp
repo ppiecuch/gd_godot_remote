@@ -20,7 +20,6 @@ void register_gd_godot_remote_types() {
 	ClassDB::register_class<GodotRemote>();
 	ClassDB::register_class<GRUtilsData>();
 	Engine::get_singleton()->add_singleton(Engine::Singleton("GodotRemote", memnew(GodotRemote)));
-	GRUtils::init();
 
 	ClassDB::register_class<GRNotifications>();
 	ClassDB::register_class<GRNotificationPanel>();
@@ -81,5 +80,4 @@ void register_gd_godot_remote_types() {
 void unregister_gd_godot_remote_types() {
 	if (GodotRemote *instance = GodotRemote::get_singleton())
 		memdelete(instance);
-	GRUtils::deinit();
 }

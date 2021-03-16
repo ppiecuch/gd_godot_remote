@@ -5,9 +5,11 @@
 #include "core/io/compression.h"
 
 #ifndef NO_GODOTREMOTE_SERVER
-// richgel999/jpeg-compressor: https://github.com/richgel999/jpeg-compressor
+// https://github.com/richgel999/jpeg-compressor
 #include "jpge.h"
 #endif
+
+GRUtilsData *GRUtils::_grutils_data = nullptr;
 
 namespace GRUtils {
 
@@ -54,50 +56,25 @@ void deinit_server_utils() {
 
 void log_str(const Variant &val, int lvl, String file, int line) {
 #ifdef DEBUG_ENABLED
-#ifndef GDNATIVE_LIBRARY
-	if (lvl >= _grutils_data->current_loglevel && lvl < LogLevel::LL_NONE) {
-		String file_line = "";
-		if (file != "") {
-			int idx = file.find("godot_remote");
-			if (idx != -1) {
-				file = file.substr(file.find("godot_remote"), file.length());
-			}
-
-			file_line = "\n    At: " + file + ":" + str(line);
+if (lvl >= _grutils_data->current_loglevel && lvl < LogLevel::LL_NONE) {
+	String file_line = "";
+	if (file != "") {
+		int idx = file.find("godot_remote");
+		if (idx != -1) {
+			file = file.substr(file.find("godot_remote"), file.length());
 		}
 
-		if (lvl == LogLevel::LL_ERROR) {
-			print_error("[GodotRemote Error] " + str(val) + file_line);
-		} else if (lvl == LogLevel::LL_WARNING) {
-			print_error("[GodotRemote Warning] " + str(val) + file_line);
-		} else {
-			print_line("[GodotRemote] " + str(val));
-		}
+		file_line = "\n    At: " + file + ":" + str(line);
 	}
 
-#else
-
-#define print_error_ext() Godot::print_error(str(val), "[GodotRemote Error]", file, line)
-#define print_warning_ext() Godot::print_warning(str(val), "[GodotRemote Warning]", file, line)
-
-	if (lvl >= _grutils_data->current_loglevel && lvl < LogLevel::LL_NONE) {
-		if (file != "") {
-			int idx = file.find("godot_remote");
-			if (idx != -1)
-				file = file.substr(file.find("godot_remote"), file.length());
-		}
-
-		if (lvl == LogLevel::LL_ERROR) {
-			print_error_ext();
-		} else if (lvl == LogLevel::LL_WARNING) {
-			print_warning_ext();
-		} else {
-			Godot::print("[GodotRemote] " + str(val));
-		}
+	if (lvl == LogLevel::LL_ERROR) {
+		print_error("[GodotRemote Error] " + str(val) + file_line);
+	} else if (lvl == LogLevel::LL_WARNING) {
+		print_error("[GodotRemote Warning] " + str(val) + file_line);
+	} else {
+		print_line("[GodotRemote] " + str(val));
 	}
-#undef print_error_ext
-#undef print_warning_ext
-#endif
+}
 #endif
 }
 

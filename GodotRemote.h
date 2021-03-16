@@ -1,6 +1,7 @@
 /* GodotRemote.h */
 #pragma once
 
+#include "GRDevice.h"
 #include "GRNotifications.h"
 #include "GRUtils.h"
 #include "core/image.h"
@@ -98,7 +99,7 @@ public:
 	void set_notifications_style(Ref<class GRNotificationStyle> _style) const;
 	Ref<class GRNotificationStyle> get_notifications_style() const;
 
-	void add_notification_or_append_string(String title, String text, GRNotifications::NotificationIcon icon, bool new_string = true);
+	void add_notification_or_append_string(String title, String text, GRNotifications::NotificationIcon icon, bool new_string = true, float duration_multiplier = 1.f) const;
 	void add_notification_or_update_line(String title, String id, String text, GRNotifications::NotificationIcon icon, float duration_multiplier = 1.f) const;
 	void add_notification(String title, String text, GRNotifications::NotificationIcon icon, bool update_existing = true, float duration_multiplier = 1.f) const;
 	void remove_notification(String title, bool all_entries = true) const;
@@ -124,9 +125,8 @@ public:
 	bool remove_remote_device();
 
 	static GodotRemote *get_singleton();
-
-	GodotRemote();
-	~GodotRemote();
+	void _init();
+	void _deinit();
 };
 
 VARIANT_ENUM_CAST(GodotRemote::DeviceType)
