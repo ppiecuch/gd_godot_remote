@@ -270,17 +270,19 @@ void GodotRemote::register_and_load_settings() {
 }
 
 void GodotRemote::_create_notification_manager() {
-	if (ST()) {
+	if (SceneTree *sc = ST()) {
 		GRNotifications *notif = memnew(GRNotifications);
-		SceneTree::get_singleton()->get_root()->call_deferred("add_child", notif);
-		SceneTree::get_singleton()->get_root()->call_deferred("move_child", notif, 0);
+		sc->get_root()->call_deferred("add_child", notif);
+		sc->get_root()->call_deferred("move_child", notif, 0);
 	}
 }
 
 void GodotRemote::_remove_notifications_manager() {
 	GRNotificationPanel::clear_styles();
 	if (GRNotifications::get_singleton() && !GRNotifications::get_singleton()->is_queued_for_deletion()) {
-		SceneTree::get_singleton()->get_root()->remove_child(GRNotifications::get_singleton());
+		if (SceneTree *sc = ST()) {
+			sc->get_root()->remove_child(GRNotifications::get_singleton());
+		}
 		memdelete(GRNotifications::get_singleton());
 	}
 }
