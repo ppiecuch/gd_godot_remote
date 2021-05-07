@@ -41,8 +41,9 @@ GodotRemote *GodotRemote::get_singleton() {
 }
 
 void GodotRemote::_init() {
-	if (!singleton)
+	if (!singleton) {
 		singleton = this;
+	}
 
 	register_and_load_settings();
 	LEAVE_IF_EDITOR();
@@ -200,8 +201,10 @@ bool GodotRemote::create_remote_device(DeviceType type) {
 	if (d) {
 		device = d;
 		call_deferred("emit_signal", "device_added");
-		SceneTree::get_singleton()->get_root()->call_deferred("add_child", device);
-		SceneTree::get_singleton()->get_root()->call_deferred("move_child", device, 0);
+		if (SceneTree *sc = ST()) {
+			sc->get_root()->call_deferred("add_child", device);
+			sc->get_root()->call_deferred("move_child", device, 0);
+		}
 		return true;
 	}
 
@@ -219,7 +222,9 @@ bool GodotRemote::start_remote_device() {
 bool GodotRemote::remove_remote_device() {
 	if (device && !device->is_queued_for_deletion()) {
 		device->stop();
-		device->queue_delete();
+		if (ST()) {
+			device->queue_delete();
+		}
 		device = nullptr;
 		call_deferred("emit_signal", "device_removed");
 		return true;
@@ -299,8 +304,8 @@ void GodotRemote::create_and_start_device(DeviceType type) {
 
 void GodotRemote::_prepare_editor() {
 	if (Engine::get_singleton()->is_editor_hint()) {
-		if (EditorNode::get_singleton())
-			EditorNode::get_singleton()->connect("play_pressed", this, "_run_emitted");
+		if (EditorNode *editor = EditorNode::get_singleton())
+			editor->connect("play_pressed", this, "_run_emitted");
 	}
 }
 

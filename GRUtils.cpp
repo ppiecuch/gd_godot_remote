@@ -56,7 +56,7 @@ void deinit_server_utils() {
 
 void log_str(const Variant &val, int lvl, String file, int line) {
 #ifdef DEBUG_ENABLED
-if (lvl >= _grutils_data->current_loglevel && lvl < LogLevel::LL_NONE) {
+if ((_grutils_data && lvl >= _grutils_data->current_loglevel && lvl < LogLevel::LL_NONE) || (!_grutils_data && lvl > LogLevel::LL_DEBUG)) {
 	String file_line = "";
 	if (file != "") {
 		int idx = file.find("godot_remote");
@@ -180,7 +180,7 @@ Error compress_jpg(PoolByteArray &ret, const PoolByteArray &img_data, int width,
 								params),
 			Error::FAILED, "Can't compress image.");
 
-	TimeCount("Compress img");
+	TimeCount("Compress jpg");
 
 	ri.release();
 

@@ -275,8 +275,9 @@ void GRServer::_internal_call_only_deffered_stop() {
 		server_thread_listen = nullptr;
 	}
 
-	if (resize_viewport)
+	if (resize_viewport) {
 		resize_viewport->set_process(false);
+	}
 	call_deferred("_remove_resize_viewport", resize_viewport);
 	resize_viewport = nullptr;
 	_send_queue_resize(0);
@@ -290,6 +291,7 @@ void GRServer::_remove_resize_viewport(Node *node) {
 	if (vp && !vp->is_queued_for_deletion()) {
 		remove_child(vp);
 		memdelete(vp);
+		vp = nullptr;
 	}
 }
 
@@ -1279,7 +1281,7 @@ void GRSViewport::_processing_thread(THREAD_DATA p_user) {
 	switch (ips->compression_type) {
 		case GRDevice::ImageCompressionType::COMPRESSION_UNCOMPRESSED: {
 			ips->ret_data = img->get_data();
-			TimeCount("Image Uncompressed");
+			TimeCount("Image processed: Uncompressed");
 			break;
 		}
 		case GRDevice::ImageCompressionType::COMPRESSION_JPG: {
@@ -1290,7 +1292,7 @@ void GRSViewport::_processing_thread(THREAD_DATA p_user) {
 					GRNotifications::add_notification("Stream Error", "Can't compress stream image to JPG. Code: " + str(err), GRNotifications::NotificationIcon::ICON_ERROR);
 				}
 			}
-			TimeCount("Image JPG");
+			TimeCount("Image processed: JPG");
 			break;
 		}
 		case GRDevice::ImageCompressionType::COMPRESSION_PNG: {
@@ -1299,7 +1301,7 @@ void GRSViewport::_processing_thread(THREAD_DATA p_user) {
 				_log("Can't compress stream image to PNG.", LogLevel::LL_ERROR);
 				GRNotifications::add_notification("Stream Error", "Can't compress stream image to PNG.", GRNotifications::NotificationIcon::ICON_ERROR);
 			}
-			TimeCount("Image PNG");
+			TimeCount("Image processed: PNG");
 			break;
 		}
 		default:
@@ -1372,8 +1374,10 @@ void GRSViewport::_notification(int p_notification) {
 				if (get_texture().is_null())
 					break;
 
+				auto tmp_image = get_texture()->get_data();
 				_THREAD_SAFE_LOCK_;
-				last_image = get_texture()->get_data(); // extremely slow
+
+				last_image = tmp_image;
 				TimeCount("Get image data from VisualServer");
 
 				if (!last_image->empty()) {

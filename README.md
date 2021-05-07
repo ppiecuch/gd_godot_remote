@@ -16,4 +16,4 @@ If you are developing on a non-touch device, this module is the best way to quic
 
  * https://github.com/DmitriySalnikov/GodotRemote
 
- * Last update of this module: _20.02.2021_
+ * Last merged changes from the upstream module: _13.03.2021_

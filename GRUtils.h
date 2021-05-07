@@ -44,9 +44,14 @@
 
 #endif // DEBUG_ENABLED
 
-#define LEAVE_IF_EDITOR()                          \
-	if (Engine::get_singleton()->is_editor_hint()) \
+#if TOOLS_ENABLED
+# define LEAVE_IF_EDITOR()                                   \
+	if (Engine::get_singleton()->is_editor_hint()            \
+		|| OS::get_singleton()->is_no_window_mode_enabled()) \
 		return;
+#else
+# define LEAVE_IF_EDITOR()
+#endif
 
 #define newref(_class) Ref<_class>(memnew(_class))
 #define max(x, y) (x > y ? x : y)
