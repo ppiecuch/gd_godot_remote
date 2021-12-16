@@ -60,7 +60,7 @@ private:
 protected:
 	template <class T>
 	T _find_queued_packet_by_type() {
-		for (int i = 0; i < send_queue.size(); i++) {
+		for (unsigned i = 0; i < send_queue.size(); i++) {
 			T o = send_queue[i];
 			if (o.is_valid()) {
 				return o;
@@ -94,7 +94,7 @@ protected:
 	void _notification(int p_notification);
 
 public:
-	uint16_t port = 52341;
+	uint16_t port = 51341;
 
 	float get_avg_ping();
 	float get_min_ping();

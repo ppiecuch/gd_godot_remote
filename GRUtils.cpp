@@ -59,9 +59,10 @@ void log_str(const Variant &val, int lvl, String file, int line) {
 if ((_grutils_data && lvl >= _grutils_data->current_loglevel && lvl < LogLevel::LL_NONE) || (!_grutils_data && lvl > LogLevel::LL_DEBUG)) {
 	String file_line = "";
 	if (file != "") {
-		int idx = file.find("godot_remote");
+		const char *module = "gd_godot_remote";
+		int idx = file.find(module);
 		if (idx != -1) {
-			file = file.substr(file.find("godot_remote"), file.length());
+			file = file.substr(file.find(module), file.length());
 		}
 
 		file_line = "\n    At: " + file + ":" + str(line);

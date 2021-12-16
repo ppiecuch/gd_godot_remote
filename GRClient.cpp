@@ -987,7 +987,7 @@ void GRClient::_connection_loop(ConnectionThreadParamsClient *con_thread) {
 		bool nothing_happens = true;
 		uint64_t start_while_time = 0;
 		dev->prev_valid_connection_time = time64;
-		int send_data_time_us = (1000000 / dev->send_data_fps);
+		unsigned send_data_time_us = (1000000 / dev->send_data_fps);
 
 		///////////////////////////////////////////////////////////////////
 		// SENDING
@@ -1122,8 +1122,9 @@ void GRClient::_connection_loop(ConnectionThreadParamsClient *con_thread) {
 			Variant buf;
 			err = ppeer->get_var(buf);
 
-			if (err)
+			if (err) {
 				goto end_recv;
+			}
 
 			Ref<GRPacket> pack = GRPacket::create(buf);
 			if (pack.is_null()) {
@@ -1200,8 +1201,8 @@ void GRClient::_connection_loop(ConnectionThreadParamsClient *con_thread) {
 					break;
 				}
 				case GRPacket::PacketType::Ping: {
-					Ref<GRPacketPong> pack(memnew(GRPacketPong));
-					err = ppeer->put_var(pack->get_data());
+					Ref<GRPacketPong> ppack(memnew(GRPacketPong));
+					err = ppeer->put_var(ppack->get_data());
 					if ((int)err) {
 						_log("Send pong failed with code: " + str((int)err), LogLevel::LL_NORMAL);
 						break;

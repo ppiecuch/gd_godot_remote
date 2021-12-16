@@ -74,8 +74,9 @@ Ref<GRInputData> GRInputData::create(const PoolByteArray &buf) {
 }
 
 Ref<GRInputDataEvent> GRInputDataEvent::parse_event(const Ref<InputEvent> &ev, const Rect2 &rect) {
-	if (ev.is_null())
+	if (ev.is_null()) {
 		ERR_FAIL_COND_V(ev.is_null(), Ref<GRInputDataEvent>());
+	}
 
 #define PARSE(_i, _d)                     \
 	{                                     \

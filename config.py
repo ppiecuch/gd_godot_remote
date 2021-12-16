@@ -1,7 +1,7 @@
-# config.py
 
 def can_build(env, platform):
-    return not env["disable_experimental"]
+    return env["tools"]
+
 
 def configure(env):
     pass

@@ -178,7 +178,7 @@ Ref<StreamPeerBuffer> GRPacketInputData::_get_data() {
 	}
 	buf->put_32(count);
 
-	for (int i = 0; i < inputs.size(); i++) {
+	for (unsigned i = 0; i < inputs.size(); i++) {
 		buf->put_var(((Ref<GRInputData>)inputs[i])->get_data());
 	}
 	return buf;

@@ -172,7 +172,7 @@ Array GRNotifications::get_notifications_with_title(String title) {
 	Array arr;
 	if (singleton) {
 		auto list = singleton->_get_notifications_with_title(title);
-		for (int i = 0; i < list.size(); i++) {
+		for (unsigned i = 0; i < list.size(); i++) {
 			arr.append(list[i]);
 		}
 	}
@@ -310,7 +310,7 @@ void GRNotifications::_add_notification(String title, String text, NotificationI
 void GRNotifications::_remove_notification(String title, bool all_entries) {
 	if (all_entries) {
 		auto nps = _get_notifications_with_title(title);
-		for (int i = 0; i < nps.size(); i++) {
+		for (unsigned i = 0; i < nps.size(); i++) {
 			_remove_exact_notification(nps[i]);
 		}
 	} else {
@@ -676,7 +676,7 @@ void GRNotificationPanel::_deinit() {
 
 String GRNotificationPanelUpdatable::_get_text_from_lines() {
 	String res = "";
-	int i = 0;
+	unsigned i = 0;
 	for (auto lv : lines) {
 		res += str(lv.second);
 		if (i < lines.size() - 1) {

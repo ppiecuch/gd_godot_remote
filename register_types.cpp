@@ -14,7 +14,7 @@
 #include "core/project_settings.h"
 
 // clumsy settings to test
-// outbound and ip.DstAddr >= 127.0.0.1 and ip.DstAddr <= 127.255.255.255 and (tcp.DstPort == 52341 or tcp.SrcPort == 52341)
+// outbound and ip.DstAddr >= 127.0.0.1 and ip.DstAddr <= 127.255.255.255 and (tcp.DstPort == 51341 or tcp.SrcPort == 51341)
 
 void register_gd_godot_remote_types() {
 	ClassDB::register_class<GodotRemote>();

@@ -18,7 +18,7 @@ void GRDevice::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_max_fps"), &GRDevice::get_max_fps);
 
 	ClassDB::bind_method(D_METHOD("get_port"), &GRDevice::get_port);
-	ClassDB::bind_method(D_METHOD("set_port", "port"), &GRDevice::set_port, DEFVAL(52341));
+	ClassDB::bind_method(D_METHOD("set_port", "port"), &GRDevice::set_port, DEFVAL(51341));
 
 	ClassDB::bind_method(D_METHOD("send_user_data", "packet_id", "user_data", "full_objects"), &GRDevice::send_user_data, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("start"), &GRDevice::start);

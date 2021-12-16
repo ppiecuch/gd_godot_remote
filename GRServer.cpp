@@ -75,8 +75,8 @@ void GRServer::_notification(int p_notification) {
 		case NOTIFICATION_EXIT_TREE: {
 			if (get_status() == (int)WorkingStatus::STATUS_WORKING) {
 				_internal_call_only_deffered_stop();
-			} break;
-		}
+			}
+		} break;
 		case NOTIFICATION_CRASH: {
 		} break;
 	}
@@ -215,8 +215,9 @@ void GRServer::_deinit() {
 	if (get_status() == (int)WorkingStatus::STATUS_WORKING) {
 		_internal_call_only_deffered_stop();
 	}
-	custom_input_scene_regex_resource_finder.unref();
 	deinit_server_utils();
+	custom_input_scene_regex_resource_finder.unref();
+	tcp_server.unref();
 }
 
 void GRServer::_internal_call_only_deffered_start() {
@@ -490,35 +491,35 @@ void GRServer::_thread_listen(THREAD_DATA p_userdata) {
 						String txt = "Socket listening unavailable";
 						_log(txt, LogLevel::LL_ERROR);
 						if (!listening_error_notification_shown)
-							GRNotifications::add_notification("Can't start listening", txt, GRNotifications::NotificationIcon::ICON_ERROR, true, 1.25f);
+							GRNotifications::add_notification("Can't start listening", txt, GRNotifications::NotificationIcon::ICON_ERROR, true, 1.25);
 						break;
 					}
 					case Error::ERR_ALREADY_IN_USE: {
-						String txt = "Socket already in use";
+						String txt = vformat("Socket %d already in use", dev->port);
 						_log(txt, LogLevel::LL_ERROR);
 						if (!listening_error_notification_shown)
-							GRNotifications::add_notification("Can't start listening", txt, GRNotifications::NotificationIcon::ICON_ERROR, true, 1.25f);
+							GRNotifications::add_notification("Can't start listening", txt, GRNotifications::NotificationIcon::ICON_ERROR, true, 1.25);
 						break;
 					}
 					case Error::ERR_INVALID_PARAMETER: {
 						String txt = "Invalid listening address";
 						_log(txt, LogLevel::LL_ERROR);
 						if (!listening_error_notification_shown)
-							GRNotifications::add_notification("Can't start listening", txt, GRNotifications::NotificationIcon::ICON_ERROR, true, 1.25f);
+							GRNotifications::add_notification("Can't start listening", txt, GRNotifications::NotificationIcon::ICON_ERROR, true, 1.25);
 						break;
 					}
 					case Error::ERR_CANT_CREATE: {
 						String txt = "Can't bind listener";
 						_log(txt, LogLevel::LL_ERROR);
 						if (!listening_error_notification_shown)
-							GRNotifications::add_notification("Can't start listening", txt, GRNotifications::NotificationIcon::ICON_ERROR, true, 1.25f);
+							GRNotifications::add_notification("Can't start listening", txt, GRNotifications::NotificationIcon::ICON_ERROR, true, 1.25);
 						break;
 					}
 					case Error::FAILED: {
 						String txt = "Failed to start listening";
 						_log(txt, LogLevel::LL_ERROR);
 						if (!listening_error_notification_shown)
-							GRNotifications::add_notification("Can't start listening", txt, GRNotifications::NotificationIcon::ICON_ERROR, true, 1.25f);
+							GRNotifications::add_notification("Can't start listening", txt, GRNotifications::NotificationIcon::ICON_ERROR, true, 1.25);
 						break;
 					}
 					default: {
@@ -531,7 +532,7 @@ void GRServer::_thread_listen(THREAD_DATA p_userdata) {
 				os->delay_usec(1000_ms);
 				continue;
 			} else {
-				_log("Start listening port " + str(dev->port), LogLevel::LL_NORMAL);
+				_log("Start listening on port " + str(dev->port), LogLevel::LL_NORMAL);
 				GRNotifications::add_notification("Start listening", "Start listening on port: " + str(dev->port), GRNotifications::NotificationIcon::ICON_SUCCESS, true);
 			}
 		}
@@ -956,8 +957,8 @@ void GRServer::_thread_connection(THREAD_DATA p_userdata) {
 					break;
 				}
 				case GRPacket::PacketType::Ping: {
-					Ref<GRPacketPong> pack(memnew(GRPacketPong));
-					err = ppeer->put_var(pack->get_data());
+					Ref<GRPacketPong> ppack(memnew(GRPacketPong));
+					err = ppeer->put_var(ppack->get_data());
 
 					if (err) {
 						_log("Send pong failed with code: " + str(err), LogLevel::LL_ERROR);
@@ -1523,8 +1524,9 @@ void GRSViewport::_deinit() {
 	_close_thread();
 
 	_THREAD_SAFE_LOCK_;
-	if (last_image_data)
+	if (last_image_data) {
 		memdelete(last_image_data);
+	}
 	last_image_data = nullptr;
 	last_image.unref();
 	_THREAD_SAFE_UNLOCK_;

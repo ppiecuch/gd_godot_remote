@@ -224,6 +224,8 @@ bool GodotRemote::remove_remote_device() {
 		device->stop();
 		if (ST()) {
 			device->queue_delete();
+		} else {
+			memdelete(device);
 		}
 		device = nullptr;
 		call_deferred("emit_signal", "device_removed");
@@ -244,7 +246,7 @@ void GodotRemote::register_and_load_settings() {
 	ProjectSettings::get_singleton()->set_custom_property_info(name, PropertyInfo(info_type, name, info_hint_type, info_hint_string))
 
 	DEF_SET(is_autostart, ps_general_autoload_name, true, Variant::BOOL, PROPERTY_HINT_NONE, "");
-	DEF_(ps_general_port_name, 52341, Variant::INT, PROPERTY_HINT_RANGE, "0,65535");
+	DEF_(ps_general_port_name, 51341, Variant::INT, PROPERTY_HINT_RANGE, "0,65535");
 	DEF_(ps_general_loglevel_name, LogLevel::LL_NORMAL, Variant::INT, PROPERTY_HINT_ENUM, "Debug,Normal,Warning,Error,None");
 
 	DEF_(ps_notifications_enabled_name, true, Variant::BOOL, PROPERTY_HINT_NONE, "");
@@ -373,12 +375,14 @@ Array GodotRemote::get_notifications_with_title(String title) const {
 	return GRNotifications::get_notifications_with_title(title);
 }
 void GodotRemote::set_notifications_layer(int layer) const {
-	if (GRNotifications::get_singleton())
+	if (GRNotifications::get_singleton()) {
 		GRNotifications::get_singleton()->set_layer(layer);
+	}
 }
 int GodotRemote::get_notifications_layer() const {
-	if (GRNotifications::get_singleton())
+	if (GRNotifications::get_singleton()) {
 		return GRNotifications::get_singleton()->get_layer();
+	}
 	return 0;
 }
 void GodotRemote::set_notifications_position(GRNotifications::NotificationsPosition positon) const {
