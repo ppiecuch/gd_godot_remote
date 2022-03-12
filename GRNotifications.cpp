@@ -424,7 +424,7 @@ void GRNotificationPanel::_setup_tween(Tween *_tween) {
 	const float duration = owner->get_notifications_duration() * duration_mul;
 	_tween->remove_all();
 	_tween->interpolate_property(this, NodePath("modulate"), Color(1, 1, 1, 1), Color(1, 1, 1, 0), duration, Tween::TRANS_QUART, Tween::EASE_IN);
-	_tween->interpolate_callback(this, duration, "_remove_this_notification", Variant(), Variant(), Variant(), Variant(), Variant());
+	_tween->interpolate_callback(this, duration, "_remove_this_notification", VARIANT_ARG_EMPTY);
 }
 
 void GRNotificationPanel::_update_style() {
