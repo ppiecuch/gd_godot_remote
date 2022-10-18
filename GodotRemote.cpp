@@ -245,13 +245,13 @@ void GodotRemote::register_and_load_settings() {
 	GLOBAL_DEF(name, def_val);                                           \
 	ProjectSettings::get_singleton()->set_custom_property_info(name, PropertyInfo(info_type, name, info_hint_type, info_hint_string))
 
-	DEF_SET(is_autostart, ps_general_autoload_name, true, Variant::BOOL, PROPERTY_HINT_NONE, "");
+	DEF_SET(is_autostart, ps_general_autoload_name, false, Variant::BOOL, PROPERTY_HINT_NONE, "");
 	DEF_(ps_general_port_name, 51341, Variant::INT, PROPERTY_HINT_RANGE, "0,65535");
 	DEF_(ps_general_loglevel_name, LogLevel::LL_NORMAL, Variant::INT, PROPERTY_HINT_ENUM, "Debug,Normal,Warning,Error,None");
 
 	DEF_(ps_notifications_enabled_name, true, Variant::BOOL, PROPERTY_HINT_NONE, "");
 	DEF_(ps_noticications_position_name, GRNotifications::NotificationsPosition::TOP_CENTER, Variant::INT, PROPERTY_HINT_ENUM, "TopLeft,TopCenter,TopRight,BottomLeft,BottomCenter,BottomRight");
-	DEF_(ps_notifications_duration_name, 3.f, Variant::REAL, PROPERTY_HINT_RANGE, "0,100, 0.01");
+	DEF_(ps_notifications_duration_name, 3.0, Variant::REAL, PROPERTY_HINT_RANGE, "0,100, 0.01");
 
 	// const server settings
 	DEF_(ps_server_config_adb_name, false, Variant::BOOL, PROPERTY_HINT_NONE, "");
